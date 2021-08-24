@@ -17,13 +17,13 @@ limitations under the License.
 package topology
 
 import (
+	. "sigs.k8s.io/cluster-api/internal/matcher"
 	"testing"
 
 	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/internal/testtypes"
 
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,8 +111,8 @@ func TestGetReference(t *testing.T) {
 			}
 			g.Expect(err).NotTo(HaveOccurred())
 
-			g.Expect(got).To(Equal(tt.want), cmp.Diff(tt.want, got))
-			g.Expect(tt.ref).To(Equal(tt.wantRef), cmp.Diff(tt.wantRef, tt.ref))
+			g.Expect(got).To(EqualObject(tt.want))
+			g.Expect(tt.ref).To(EqualObject(tt.wantRef))
 		})
 	}
 }

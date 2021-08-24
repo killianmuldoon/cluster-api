@@ -19,11 +19,11 @@ package topology
 import (
 	"fmt"
 	"regexp"
+	. "sigs.k8s.io/cluster-api/internal/matcher"
 	"testing"
 
 	"sigs.k8s.io/cluster-api/internal/testtypes"
 
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -101,8 +101,8 @@ func TestReconcileCluster(t *testing.T) {
 			err = fakeClient.Get(ctx, client.ObjectKeyFromObject(tt.want), got)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			g.Expect(got.Spec.InfrastructureRef).To(Equal(tt.want.Spec.InfrastructureRef), cmp.Diff(got, tt.want))
-			g.Expect(got.Spec.ControlPlaneRef).To(Equal(tt.want.Spec.ControlPlaneRef), cmp.Diff(got, tt.want))
+			g.Expect(got.Spec.InfrastructureRef).To(EqualObject(tt.want.Spec.InfrastructureRef))
+			g.Expect(got.Spec.ControlPlaneRef).To(EqualObject(tt.want.Spec.ControlPlaneRef))
 		})
 	}
 }

@@ -787,6 +787,7 @@ func TestComputeMachineDeployment(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		actualMd := actual.Object
+
 		g.Expect(*actualMd.Spec.Replicas).NotTo(Equal(currentReplicas))
 		g.Expect(actualMd.Name).To(Equal("existing-deployment-1"))
 
