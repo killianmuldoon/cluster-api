@@ -14,6 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1alpha3 contains the v1alpha3 API implementation.
-// +k8s:conversion-gen=sigs.k8s.io/cluster-api/exp/api/v1beta1
-package v1alpha3
+package v1beta1
+
+import clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+
+// Conditions and condition Reasons for the MachinePool object
+
+const (
+	// ReplicasReadyCondition reports an aggregate of current status of the replicas controlled by the MachinePool.
+	ReplicasReadyCondition clusterv1.ConditionType = "ReplicasReady"
+
+	// WaitingForReplicasReadyReason (Severity=Info) documents a machinepool waiting for the required replicas
+	// to be ready.
+	WaitingForReplicasReadyReason = "WaitingForReplicasReady"
+)
