@@ -19,44 +19,43 @@ package topology
 import (
 	"testing"
 
-	. "sigs.k8s.io/cluster-api/internal/matcher"
-
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/topology/internal/scope"
-	"sigs.k8s.io/cluster-api/internal/testtypes"
+	"sigs.k8s.io/cluster-api/internal/builder"
+	. "sigs.k8s.io/cluster-api/internal/matchers"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestGetBlueprint(t *testing.T) {
 	crds := []client.Object{
-		testtypes.GenericInfrastructureClusterTemplateCRD,
-		testtypes.GenericInfrastructureMachineTemplateCRD,
-		testtypes.GenericInfrastructureMachineCRD,
-		testtypes.GenericControlPlaneTemplateCRD,
-		testtypes.GenericBootstrapConfigTemplateCRD,
+		builder.GenericInfrastructureClusterTemplateCRD,
+		builder.GenericInfrastructureMachineTemplateCRD,
+		builder.GenericInfrastructureMachineCRD,
+		builder.GenericControlPlaneTemplateCRD,
+		builder.GenericBootstrapConfigTemplateCRD,
 	}
 
 	// The following is a block creating a number of objects for use in the test cases.
 
-	infraClusterTemplate := testtypes.NewInfrastructureClusterTemplateBuilder(metav1.NamespaceDefault, "infraclustertemplate1").
+	infraClusterTemplate := builder.NewInfrastructureClusterTemplateBuilder(metav1.NamespaceDefault, "infraclustertemplate1").
 		Build()
-	controlPlaneTemplate := testtypes.NewControlPlaneTemplateBuilder(metav1.NamespaceDefault, "controlplanetemplate1").
+	controlPlaneTemplate := builder.NewControlPlaneTemplateBuilder(metav1.NamespaceDefault, "controlplanetemplate1").
 		Build()
 
-	controlPlaneInfrastructureMachineTemplate := testtypes.NewInfrastructureMachineTemplateBuilder(metav1.NamespaceDefault, "controlplaneinframachinetemplate1").
+	controlPlaneInfrastructureMachineTemplate := builder.NewInfrastructureMachineTemplateBuilder(metav1.NamespaceDefault, "controlplaneinframachinetemplate1").
 		Build()
-	controlPlaneTemplateWithInfrastructureMachine := testtypes.NewControlPlaneTemplateBuilder(metav1.NamespaceDefault, "controlplanetempaltewithinfrastructuremachine1").
+	controlPlaneTemplateWithInfrastructureMachine := builder.NewControlPlaneTemplateBuilder(metav1.NamespaceDefault, "controlplanetempaltewithinfrastructuremachine1").
 		WithInfrastructureMachineTemplate(controlPlaneInfrastructureMachineTemplate).
 		Build()
 
-	workerInfrastructureMachineTemplate := testtypes.NewInfrastructureMachineTemplateBuilder(metav1.NamespaceDefault, "workerinframachinetemplate1").
+	workerInfrastructureMachineTemplate := builder.NewInfrastructureMachineTemplateBuilder(metav1.NamespaceDefault, "workerinframachinetemplate1").
 		Build()
-	workerBootstrapTemplate := testtypes.NewBootstrapTemplateBuilder(metav1.NamespaceDefault, "workerbootstraptemplate1").
+	workerBootstrapTemplate := builder.NewBootstrapTemplateBuilder(metav1.NamespaceDefault, "workerbootstraptemplate1").
 		Build()
-	machineDeployment := testtypes.NewMachineDeploymentClassBuilder(metav1.NamespaceDefault, "machinedeployment1").
+	machineDeployment := builder.NewMachineDeploymentClassBuilder(metav1.NamespaceDefault, "machinedeployment1").
 		WithClass("workerclass1").
 		WithLabels(map[string]string{"foo": "bar"}).
 		WithAnnotations(map[string]string{"a": "b"}).
@@ -79,14 +78,14 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Fails if ClusterClass does not have reference to the InfrastructureClusterTemplate",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "clusterclass1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "clusterclass1").
 				// No InfrastructureClusterTemplate reference!
 				Build(),
 			wantErr: true,
 		},
 		{
 			name: "Fails if ClusterClass references an InfrastructureClusterTemplate that does not exist",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "clusterclass1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "clusterclass1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				Build(),
 			objects: []client.Object{
@@ -96,7 +95,7 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Fails if ClusterClass does not have reference to the ControlPlaneTemplate",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				// No ControlPlaneTemplate reference!
 				Build(),
@@ -107,7 +106,7 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Fails if ClusterClass does not have reference to the ControlPlaneTemplate",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				WithControlPlaneTemplate(controlPlaneTemplate).
 				Build(),
@@ -119,7 +118,7 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Should read a ClusterClass without worker classes",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				WithControlPlaneTemplate(controlPlaneTemplate).
 				Build(),
@@ -128,7 +127,7 @@ func TestGetBlueprint(t *testing.T) {
 				controlPlaneTemplate,
 			},
 			want: &scope.ClusterBlueprint{
-				ClusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+				ClusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 					WithInfrastructureClusterTemplate(infraClusterTemplate).
 					WithControlPlaneTemplate(controlPlaneTemplate).
 					Build(),
@@ -141,7 +140,7 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Should read a ClusterClass referencing an InfrastructureMachineTemplate for the ControlPlane (but without any worker class)",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				WithControlPlaneTemplate(controlPlaneTemplateWithInfrastructureMachine).
 				WithControlPlaneInfrastructureMachineTemplate(controlPlaneInfrastructureMachineTemplate).
@@ -152,7 +151,7 @@ func TestGetBlueprint(t *testing.T) {
 				controlPlaneInfrastructureMachineTemplate,
 			},
 			want: &scope.ClusterBlueprint{
-				ClusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+				ClusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 					WithInfrastructureClusterTemplate(infraClusterTemplate).
 					WithControlPlaneTemplate(controlPlaneTemplateWithInfrastructureMachine).
 					WithControlPlaneInfrastructureMachineTemplate(controlPlaneInfrastructureMachineTemplate).
@@ -167,7 +166,7 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Fails if ClusterClass references an InfrastructureMachineTemplate for the ControlPlane that does not exist",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				WithControlPlaneTemplate(controlPlaneTemplate).
 				WithControlPlaneInfrastructureMachineTemplate(controlPlaneInfrastructureMachineTemplate).
@@ -181,7 +180,7 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Should read a ClusterClass with a MachineDeploymentClass",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				WithControlPlaneTemplate(controlPlaneTemplate).
 				WithWorkerMachineDeploymentClasses(mds).
@@ -193,7 +192,7 @@ func TestGetBlueprint(t *testing.T) {
 				workerBootstrapTemplate,
 			},
 			want: &scope.ClusterBlueprint{
-				ClusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+				ClusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 					WithInfrastructureClusterTemplate(infraClusterTemplate).
 					WithControlPlaneTemplate(controlPlaneTemplate).
 					WithWorkerMachineDeploymentClasses(mds).
@@ -216,7 +215,7 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Fails if ClusterClass has a MachineDeploymentClass referencing a BootstrapTemplate that does not exist",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				WithControlPlaneTemplate(controlPlaneTemplate).
 				WithWorkerMachineDeploymentClasses(mds).
@@ -231,7 +230,7 @@ func TestGetBlueprint(t *testing.T) {
 		},
 		{
 			name: "Fails if ClusterClass has a MachineDeploymentClass referencing a InfrastructureMachineTemplate that does not exist",
-			clusterClass: testtypes.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
+			clusterClass: builder.NewClusterClassBuilder(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(infraClusterTemplate).
 				WithControlPlaneTemplate(controlPlaneTemplate).
 				WithWorkerMachineDeploymentClasses(mds).
@@ -250,7 +249,7 @@ func TestGetBlueprint(t *testing.T) {
 			g := NewWithT(t)
 
 			// Set up a cluster using the ClusterClass, if any.
-			cluster := testtypes.NewClusterBuilder(metav1.NamespaceDefault, "cluster1").Build()
+			cluster := builder.NewClusterBuilder(metav1.NamespaceDefault, "cluster1").Build()
 			if tt.clusterClass != nil {
 				cluster.Spec.Topology = &clusterv1.Topology{
 					Class: tt.clusterClass.Name,

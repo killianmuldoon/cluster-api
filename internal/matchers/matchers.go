@@ -1,4 +1,4 @@
-package matcher
+package matchers
 
 import (
 	"bytes"
@@ -12,8 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// This code is a modified version of the mergePatch code from the controllers/topology/internal/mergepatch pkg.
-// TODO: Create a shared patchdiff library that can be shared for both patching and matching.
+// This code is adappted from the mergePatch code at controllers/topology/internal/mergepatch pkg.
 
 // These package variables hold pre-created commonly used options that can be used to reduce the manual work involved in
 // identifying the paths that need to be compared for testing equality between objects.
