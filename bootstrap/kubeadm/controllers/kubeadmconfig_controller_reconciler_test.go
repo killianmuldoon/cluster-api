@@ -19,6 +19,8 @@ package controllers
 import (
 	"testing"
 
+	"sigs.k8s.io/cluster-api/internal/builder"
+
 	. "github.com/onsi/gomega"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,10 +37,12 @@ func TestKubeadmConfigReconciler(t *testing.T) {
 			ns, err := env.CreateNamespace(ctx, "test-kubeadm-config-reconciler")
 			g.Expect(err).To(BeNil())
 
-			cluster := newCluster("cluster1", ns.Name)
+			cluster := builder.Cluster(ns.Name, "cluster1").Build()
 			g.Expect(env.Create(ctx, cluster)).To(Succeed())
-
-			machine := newMachine(cluster, "my-machine", ns.Name)
+			machine := builder.Machine(ns.Name, "my-machine").
+				WithVersion("v1.19.1").
+				WithClusterName(cluster.Name).
+				Build()
 			g.Expect(env.Create(ctx, machine)).To(Succeed())
 
 			config := newKubeadmConfig(machine, "my-machine-config", ns.Name)
