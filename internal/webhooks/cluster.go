@@ -28,6 +28,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/feature"
 	"sigs.k8s.io/cluster-api/internal/topology/check"
+	"sigs.k8s.io/cluster-api/internal/topology/variables"
 	"sigs.k8s.io/cluster-api/util/version"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -55,7 +56,7 @@ var _ webhook.CustomDefaulter = &Cluster{}
 var _ webhook.CustomValidator = &Cluster{}
 
 // Default satisfies the defaulting webhook interface.
-func (webhook *Cluster) Default(_ context.Context, obj runtime.Object) error {
+func (webhook *Cluster) Default(ctx context.Context, obj runtime.Object) error {
 	cluster, ok := obj.(*clusterv1.Cluster)
 	if !ok {
 		return apierrors.NewBadRequest(fmt.Sprintf("expected a Cluster but got a %T", obj))
@@ -69,12 +70,26 @@ func (webhook *Cluster) Default(_ context.Context, obj runtime.Object) error {
 		cluster.Spec.ControlPlaneRef.Namespace = cluster.Namespace
 	}
 
-	// If the Cluster uses a managed topology
+	// Additional defaulting if the Cluster uses a managed topology.
 	if cluster.Spec.Topology != nil {
-		// tolerate version strings without a "v" prefix: prepend it if it's not there
+		// Tolerate version strings without a "v" prefix: prepend it if it's not there.
 		if !strings.HasPrefix(cluster.Spec.Topology.Version, "v") {
 			cluster.Spec.Topology.Version = "v" + cluster.Spec.Topology.Version
 		}
+
+		// If the linked ClusterClass defines defaults for variables add them to the Cluster Topology.
+		clusterClass, errs := webhook.getClusterClassForCluster(ctx, cluster)
+
+		// Return early with errors if the ClusterClass can't be retrieved.
+		if len(errs) > 0 {
+			return apierrors.NewInvalid(clusterv1.GroupVersion.WithKind("Cluster").GroupKind(), cluster.Name, errs)
+		}
+
+		defaultedVariables, allErrs := variables.DefaultClusterVariables(cluster.Spec.Topology.Variables, clusterClass.Spec.Variables, field.NewPath("spec", "topology", "variables"))
+		if len(allErrs) > 0 {
+			return apierrors.NewInvalid(clusterv1.GroupVersion.WithKind("Cluster").GroupKind(), cluster.Name, allErrs)
+		}
+		cluster.Spec.Topology.Variables = defaultedVariables
 	}
 	return nil
 }
@@ -254,21 +269,37 @@ func (webhook *Cluster) validateTopology(ctx context.Context, old, new *clusterv
 			)
 		}
 
+		// Check if the variables defined in the clusterClass are valid.
+		allErrs = append(allErrs, variables.ValidateClusterVariables(new.Spec.Topology.Variables, clusterClass.Spec.Variables, field.NewPath("spec", "topology", "variables"))...)
+
 		// If the ClusterClass referenced in the Topology has changed compatibility checks are needed.
 		if old.Spec.Topology.Class != new.Spec.Topology.Class {
-			oldClusterClass := &clusterv1.ClusterClass{}
-
 			// Check to see if the ClusterClass referenced in the old version of the Cluster exists.
-			if err := webhook.Client.Get(ctx, client.ObjectKey{Namespace: old.Namespace, Name: old.Spec.Topology.Class}, oldClusterClass); err != nil {
-				allErrs = append(
-					allErrs, field.Forbidden(
-						field.NewPath("spec", "topology", "class"),
-						fmt.Sprintf("old ClusterClass %v could not be found, changes to ClusterClass %v can not be validated for cluster %v",
-							old.Spec.Topology.Class, new.Spec.Topology.Class, new.Name)))
-				return allErrs
+			oldClusterClass, errs := webhook.getClusterClassForCluster(ctx, old)
+
+			// Return early with errors if the ClusterClass can't be retrieved.
+			if len(errs) > 0 {
+				allErrs = append(allErrs, errs...)
 			}
+
+			// Check if the new and old ClusterClasses are compatible with one another.
 			allErrs = append(allErrs, check.ClusterClassesAreCompatible(oldClusterClass, clusterClass)...)
 		}
 	}
 	return allErrs
+}
+
+func (webhook *Cluster) getClusterClassForCluster(ctx context.Context, cluster *clusterv1.Cluster) (*clusterv1.ClusterClass, field.ErrorList) {
+	var allErrs field.ErrorList
+	clusterClass := &clusterv1.ClusterClass{}
+	// Check to see if the ClusterClass referenced in the old version of the Cluster exists.
+	if err := webhook.Client.Get(ctx, client.ObjectKey{Namespace: cluster.Namespace, Name: cluster.Spec.Topology.Class}, clusterClass); err != nil {
+		allErrs = append(
+			allErrs, field.Forbidden(
+				field.NewPath("spec", "topology", "class"),
+				fmt.Sprintf("ClusterClass %v could not be found, changes to ClusterClass %v can not be validated for cluster %v",
+					cluster.Spec.Topology.Class, cluster.Spec.Topology.Class, cluster.Name)))
+		return nil, allErrs
+	}
+	return clusterClass, allErrs
 }
