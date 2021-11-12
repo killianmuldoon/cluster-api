@@ -697,36 +697,6 @@ func TestClusterTopologyValidationForTopologyClassChange(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Reject cluster.topology.class change with a deleted MachineDeploymentClass",
-			firstClass: builder.ClusterClass(metav1.NamespaceDefault, "class1").
-				WithInfrastructureClusterTemplate(refToUnstructured(ref)).
-				WithControlPlaneTemplate(refToUnstructured(ref)).
-				WithControlPlaneInfrastructureMachineTemplate(refToUnstructured(ref)).
-				WithWorkerMachineDeploymentClasses(
-					*builder.MachineDeploymentClass("aa").
-						WithInfrastructureTemplate(refToUnstructured(ref)).
-						WithBootstrapTemplate(refToUnstructured(ref)).
-						Build(),
-					*builder.MachineDeploymentClass("bb").
-						WithInfrastructureTemplate(refToUnstructured(ref)).
-						WithBootstrapTemplate(refToUnstructured(ref)).
-						Build(),
-				).
-				Build(),
-			secondClass: builder.ClusterClass(metav1.NamespaceDefault, "class2").
-				WithInfrastructureClusterTemplate(refToUnstructured(ref)).
-				WithControlPlaneTemplate(refToUnstructured(ref)).
-				WithControlPlaneInfrastructureMachineTemplate(refToUnstructured(ref)).
-				WithWorkerMachineDeploymentClasses(
-					*builder.MachineDeploymentClass("aa").
-						WithInfrastructureTemplate(refToUnstructured(ref)).
-						WithBootstrapTemplate(refToUnstructured(ref)).
-						Build(),
-				).
-				Build(),
-			wantErr: true,
-		},
-		{
 			name: "Accept cluster.topology.class change with an added MachineDeploymentClass",
 			firstClass: builder.ClusterClass(metav1.NamespaceDefault, "class1").
 				WithInfrastructureClusterTemplate(refToUnstructured(ref)).
