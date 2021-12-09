@@ -39,18 +39,24 @@ spec:
       openAPIV3Schema:
         type: string
         default: "k8s.gcr.io"
+        example: "k8s.gcr.io"
+        description: "imageRepository sets the container registry to pull images from. If empty, `k8s.gcr.io` will be used by default"
   - name: etcdImageTag
     required: true
     schema:
       openAPIV3Schema:
         type: string
         default: ""
+        example: "3.5.1"
+        description: "etcdImageTag sets the tag for the etcd image."
   - name: coreDNSImageTag
     required: true
     schema:
       openAPIV3Schema:
         type: string
         default: ""
+        example: "1.8.5"
+        description: "coreDNSImageTag sets the tag for the coreDNS image."
   patches:
   - name: imageRepository
     definitions:
