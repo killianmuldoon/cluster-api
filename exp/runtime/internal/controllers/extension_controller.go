@@ -21,29 +21,35 @@ import (
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	expv1 "sigs.k8s.io/cluster-api/exp/runtime/api/v1beta1"
-	runtimeclient "sigs.k8s.io/cluster-api/internal/runtime/client"
-	"sigs.k8s.io/cluster-api/internal/runtime/registry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+
+	expv1 "sigs.k8s.io/cluster-api/exp/runtime/api/v1beta1"
+	runtimeclient "sigs.k8s.io/cluster-api/internal/runtime/client"
+	"sigs.k8s.io/cluster-api/internal/runtime/registry"
+	"sigs.k8s.io/cluster-api/util/predicates"
 )
 
 // +kubebuilder:rbac:groups=runtime.cluster.x-k8s.io,resources=extension,verbs=get;list;watch;create;update;patch;delete
 
-// ExtensionReconciler reconciles a Extension object.
+// ExtensionReconciler reconciles an Extension object.
 type ExtensionReconciler struct {
 	Client        client.Client
 	RuntimeClient runtimeclient.Client
 	Registry      registry.Registry
+
+	// WatchFilterValue is the label value used to filter events prior to reconciliation.
+	WatchFilterValue string
 }
 
 func (r *ExtensionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&expv1.Extension{}).
+		Named("runtime/extension").
 		WithOptions(options).
+		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
 		Complete(r)
-
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")
 	}
@@ -76,15 +82,21 @@ func (r *ExtensionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return r.reconcile(ctx, ext)
 }
 
-func (r *ExtensionReconciler) reconcileDelete(ctx context.Context, ext *expv1.Extension) (ctrl.Result, error) {
+func (r *ExtensionReconciler) reconcileDelete(ctx context.Context, ext *expv1.Extension) (ctrl.Result, error) { //nolint:unparam
+	log := ctrl.LoggerFrom(ctx)
+	// Dummy implementation.
+	log.Info("DELETING AN EXTENSION NOW", "extension", ext)
+
 	r.Registry.RemoveRuntimeExtension(ext)
 
 	return ctrl.Result{}, nil
 }
 
-func (r *ExtensionReconciler) reconcile(ctx context.Context, ext *expv1.Extension) (ctrl.Result, error) {
-	// FIXME:
-	// * should call Discover on RuntimeExtension and then update Status
+func (r *ExtensionReconciler) reconcile(ctx context.Context, ext *expv1.Extension) (ctrl.Result, error) { //nolint:unparam
+	log := ctrl.LoggerFrom(ctx)
+	// Dummy implementation.
+	log.Info("RECONCILING AN EXTENSION", "extension", ext)
+	// * should call Discover on Extension and then update Status
 	// Note: Has to work with ext.Spec.ClientConfig without underlying registry
 	// Q: Is it enough to do the Discovery only once initially or on each reconcile
 

@@ -33,12 +33,16 @@ type ExtensionReconciler struct {
 	Client        client.Client
 	RuntimeClient runtimeclient.Client
 	Registry      registry.Registry
+
+	// WatchFilterValue is the label value used to filter events prior to reconciliation.
+	WatchFilterValue string
 }
 
 func (r *ExtensionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
 	return (&extensions.ExtensionReconciler{
-		Client:        r.Client,
-		RuntimeClient: r.RuntimeClient,
-		Registry:      r.Registry,
+		Client:           r.Client,
+		RuntimeClient:    r.RuntimeClient,
+		Registry:         r.Registry,
+		WatchFilterValue: r.WatchFilterValue,
 	}).SetupWithManager(ctx, mgr, options)
 }

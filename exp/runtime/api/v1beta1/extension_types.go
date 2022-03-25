@@ -28,17 +28,17 @@ import (
 type ExtensionSpec struct {
 	// ClientConfig defines how to communicate with the hook.
 	// Required
-	ClientConfig WebhookClientConfig `json:"clientConfig" protobuf:"bytes,2,opt,name=clientConfig"`
+	ClientConfig ExtensionClientConfig `json:"clientConfig"`
 
 	// Default to the empty LabelSelector, which matches everything.
 	// +optional
-	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty" protobuf:"bytes,5,opt,name=namespaceSelector"`
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
 }
 
-// WebhookClientConfig contains the information to make a TLS
-// connection with the webhook.
-type WebhookClientConfig struct {
-	// `url` gives the location of the webhook, in standard URL form
+// ExtensionClientConfig contains the information to make a TLS
+// connection with the extension.
+type ExtensionClientConfig struct {
+	// `url` gives the location of the extension, in standard URL form
 	// (`scheme://host:port/path`). Exactly one of `url` or `service`
 	// must be specified.
 	//
@@ -49,58 +49,58 @@ type WebhookClientConfig struct {
 	// also be an IP address.
 	//
 	// Please note that using `localhost` or `127.0.0.1` as a `host` is
-	// risky unless you take great care to run this webhook on all hosts
+	// risky unless you take great care to run this extension on all hosts
 	// which run an apiserver which might need to make calls to this
-	// webhook. Such installs are likely to be non-portable, i.e., not easy
+	// extension. Such installs are likely to be non-portable, i.e., not easy
 	// to turn up in a new cluster.
 	//
 	// The scheme must be "https"; the URL must begin with "https://".
 	//
 	// A path is optional, and if present may be any string permissible in
 	// a URL. You may use the path to pass an arbitrary string to the
-	// webhook, for example, a cluster identifier.
+	// extension, for example, a cluster identifier.
 	//
 	// Attempting to use a user or basic auth e.g. "user:password@" is not
 	// allowed. Fragments ("#...") and query parameters ("?...") are not
 	// allowed, either.
 	//
 	// +optional
-	URL *string `json:"url,omitempty" protobuf:"bytes,3,opt,name=url"`
+	URL *string `json:"url,omitempty"`
 
-	// `service` is a reference to the service for this webhook. Either
+	// `service` is a reference to the service for this extension. Either
 	// `service` or `url` must be specified.
 	//
-	// If the webhook is running within the cluster, then you should use `service`.
+	// If the extension is running within the cluster, then you should use `service`.
 	//
 	// +optional
-	Service *ServiceReference `json:"service,omitempty" protobuf:"bytes,1,opt,name=service"`
+	Service *ServiceReference `json:"service,omitempty"`
 
-	// `caBundle` is a PEM encoded CA bundle which will be used to validate the webhook's server certificate.
+	// `caBundle` is a PEM encoded CA bundle which will be used to validate the extension's server certificate.
 	// If unspecified, system trust roots on the apiserver are used.
 	// +optional
-	CABundle []byte `json:"caBundle,omitempty" protobuf:"bytes,2,opt,name=caBundle"`
+	CABundle []byte `json:"caBundle,omitempty"`
 }
 
 // ServiceReference holds a reference to a Kubernetes Service.
 type ServiceReference struct {
 	// `namespace` is the namespace of the service.
 	// Required
-	Namespace string `json:"namespace" protobuf:"bytes,1,opt,name=namespace"`
+	Namespace string `json:"namespace"`
 
 	// `name` is the name of the service.
 	// Required
-	Name string `json:"name" protobuf:"bytes,2,opt,name=name"`
+	Name string `json:"name"`
 
 	// `path` is an optional URL path which will be sent in any request to
 	// this service.
 	// +optional
-	Path *string `json:"path,omitempty" protobuf:"bytes,3,opt,name=path"`
+	Path *string `json:"path,omitempty"`
 
-	// If specified, the port on the service that hosting webhook.
+	// If specified, the port on the service that hosting extension.
 	// Default to 443 for backward compatibility.
 	// `port` should be a valid port number (1-65535, inclusive).
 	// +optional
-	Port *int32 `json:"port,omitempty" protobuf:"varint,4,opt,name=port"`
+	Port *int32 `json:"port,omitempty"`
 }
 
 // ANCHOR_END: ExtensionSpec
@@ -134,9 +134,9 @@ type Hook struct {
 type FailurePolicyType string
 
 const (
-	// Ignore means that an error calling the webhook is ignored.
+	// Ignore means that an error calling the extension is ignored.
 	Ignore FailurePolicyType = "Ignore"
-	// Fail means that an error calling the webhook causes the admission to fail.
+	// Fail means that an error calling the extension causes the admission to fail.
 	Fail FailurePolicyType = "Fail"
 )
 

@@ -59,6 +59,15 @@ func (e *Extension) ValidateCreate() error {
 			"can be set only if the RuntimeSDK feature flag is enabled",
 		)
 	}
+
+	// NOTE: Extensions is also behind the ClusterTopology feature gate flag; the web hook
+	// must prevent creating new objects in case the feature flag is disabled.
+	if !feature.Gates.Enabled(feature.ClusterTopology) {
+		return field.Forbidden(
+			field.NewPath("spec"),
+			"can be set only if the ClusterTopology feature flag is enabled",
+		)
+	}
 	return nil
 }
 
@@ -68,6 +77,15 @@ func (e *Extension) ValidateUpdate(old runtime.Object) error {
 		return field.Forbidden(
 			field.NewPath("spec"),
 			"can be set only if the RuntimeSDK feature flag is enabled",
+		)
+	}
+
+	// NOTE: Extensions is also behind the ClusterTopology feature gate flag; the web hook
+	// must prevent creating new objects in case the feature flag is disabled.
+	if !feature.Gates.Enabled(feature.ClusterTopology) {
+		return field.Forbidden(
+			field.NewPath("spec"),
+			"can be set only if the ClusterTopology feature flag is enabled",
 		)
 	}
 	if _, ok := old.(*Extension); !ok {

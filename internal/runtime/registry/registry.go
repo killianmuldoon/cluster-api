@@ -24,7 +24,7 @@ type RuntimeExtensionRegistration struct {
 }
 
 type ClientConfig struct {
-	WebhookClientConfig runtimev1.WebhookClientConfig
+	WebhookClientConfig runtimev1.ExtensionClientConfig
 	TimeoutSeconds      *int32
 	FailurePolicy       *runtimev1.FailurePolicyType
 	NamespaceSelector   *metav1.LabelSelector

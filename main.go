@@ -56,6 +56,7 @@ import (
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	expcontrollers "sigs.k8s.io/cluster-api/exp/controllers"
 	expruntimev1 "sigs.k8s.io/cluster-api/exp/runtime/api/v1beta1"
+	runtimecontroller "sigs.k8s.io/cluster-api/exp/runtime/controllers"
 	hooksv1alpha1 "sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1"
 	hooksv1alpha2 "sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha2"
 	hooksv1alpha3 "sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha3"
@@ -305,14 +306,26 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 		os.Exit(1)
 	}
 
-	registry := registry.New()
-
-	runtimeClient := runtimeclient.New(runtimeclient.Options{
-		Catalog:  catalog,
-		Registry: registry,
-	})
-
 	if feature.Gates.Enabled(feature.ClusterTopology) {
+		var runtimeClient runtimeclient.Client
+
+		if feature.Gates.Enabled(feature.RuntimeSDK) {
+			registry := registry.New()
+			runtimeClient = runtimeclient.New(runtimeclient.Options{
+				Catalog:  catalog,
+				Registry: registry,
+			})
+			if err = (&runtimecontroller.ExtensionReconciler{
+				Client:           mgr.GetClient(),
+				RuntimeClient:    runtimeClient,
+				Registry:         registry,
+				WatchFilterValue: watchFilterValue,
+			}).SetupWithManager(ctx, mgr, concurrency(clusterConcurrency)); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "RuntimeExtension")
+				os.Exit(1)
+			}
+		}
+
 		unstructuredCachingClient, err := client.NewDelegatingClient(
 			client.NewDelegatingClientInput{
 				// Use the default client for write operations.

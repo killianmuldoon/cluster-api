@@ -260,9 +260,7 @@ run:
   - "zz_generated.*\\.go$"
   skip-dirs:
   - third_party
-  - exp/runtime/controllers
   - exp/runtime/hooks
-  - exp/runtime/internal
   - internal/runtime/catalog
   - internal/runtime/client
   - internal/runtime/registry
