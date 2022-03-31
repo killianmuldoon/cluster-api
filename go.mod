@@ -14,7 +14,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/flatcar-linux/container-linux-config-transpiler v0.9.2
 	github.com/flatcar-linux/ignition v0.36.1
-	github.com/go-logr/logr v1.2.0
+	github.com/go-logr/logr v1.2.3
 	github.com/gobuffalo/flect v0.2.4
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v33 v33.0.0
