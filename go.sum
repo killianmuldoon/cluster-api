@@ -1266,8 +1266,8 @@ k8s.io/cli-runtime v0.23.0/go.mod h1:B5N3YH0KP1iKr6gEuJ/RRmGjO0mJQ/f/JrsmEiPQAlU
 k8s.io/client-go v0.23.0/go.mod h1:hrDnpnK1mSr65lHHcUuIZIXDgEbzc7/683c6hyG4jTA=
 k8s.io/client-go v0.23.5 h1:zUXHmEuqx0RY4+CsnkOn5l0GU+skkRXKGJrhmE2SLd8=
 k8s.io/client-go v0.23.5/go.mod h1:flkeinTO1CirYgzMPRWxUCnV0G4Fbu2vLhYCObnt/r4=
-k8s.io/cluster-bootstrap v0.23.0 h1:8pZuuAWPoygewSNB4IddX3HBwXcQkPDXL/ca7GtGf4o=
-k8s.io/cluster-bootstrap v0.23.0/go.mod h1:VltEnKWfrRTiKgOXp3ts3vh7yqNlH6KFKFflo9GtCBg=
+k8s.io/cluster-bootstrap v0.23.5 h1:BhGnjfd2J0W/XqissyT+fX8bZwKVnvaTmjsDmtda3DY=
+k8s.io/cluster-bootstrap v0.23.5/go.mod h1:8/Gz6VTOMmEDDhn8U/nx0McnQR4YETAqiYXIlqR8hdQ=
 k8s.io/code-generator v0.23.0/go.mod h1:vQvOhDXhuzqiVfM/YHp+dmg10WDZCchJVObc9MvowsE=
 k8s.io/code-generator v0.23.5/go.mod h1:S0Q1JVA+kSzTI1oUvbKAxZY/DYbA/ZUb4Uknog12ETk=
 k8s.io/component-base v0.23.0/go.mod h1:DHH5uiFvLC1edCpvcTDV++NKULdYYU6pR9Tt3HIKMKI=
