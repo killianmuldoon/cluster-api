@@ -28,6 +28,10 @@ a target [management cluster] on the selected [infrastructure provider].
 
 **Choose one of the options below:**
 
+ ```bash
+   curl -L {{#releaselink gomodule:"sigs.k8s.io/cluster-api-provider-aws" asset:"clusterawsadm-darwin-amd64" version:"1.x"}} -o clusterawsadm
+   ```
+
 1. **Existing Management Cluster**
 
    For production use-cases a "real" Kubernetes cluster should be used with appropriate backup and DR policies and procedures in place. The Kubernetes cluster must be at least v1.19.1.
@@ -85,6 +89,7 @@ a target [management cluster] on the selected [infrastructure provider].
          containerPath: /var/run/docker.sock
    EOF
    ```
+  
 
    Then follow the instruction for your kind version using  `kind create cluster --config kind-cluster-with-extramounts.yaml`
    to create the management cluster using the above file.
