@@ -403,7 +403,6 @@ func (m *MachineDeploymentClassBuilder) Build() *clusterv1.MachineDeploymentClas
 }
 
 // InfrastructureMachineTemplateBuilder holds the variables and objects needed to build an InfrastructureMachineTemplate.
-// +kubebuilder:object:generate=false
 type InfrastructureMachineTemplateBuilder struct {
 	namespace  string
 	name       string
