@@ -25,7 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	clusterv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	runtimecatalog "sigs.k8s.io/cluster-api/internal/runtime/catalog"
+	runtimehooksv1 "sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1"
+	"sigs.k8s.io/cluster-api/internal/runtime/catalog"
 )
 
 var (
@@ -35,7 +36,7 @@ var (
 
 	// catalogBuilder is used to add rpc services and their request and response types
 	// to a Catalog.
-	catalogBuilder = &runtimecatalog.Builder{GroupVersion: GroupVersion}
+	catalogBuilder = &catalog.Builder{GroupVersion: GroupVersion}
 
 	// AddToCatalog adds rpc services defined in this package and their request and
 	// response types to a catalog.
@@ -66,6 +67,9 @@ func (in *FakeRequest) DeepCopyObject() runtime.Object {
 type FakeResponse struct {
 	metav1.TypeMeta `json:",inline"`
 
+	Status  runtimehooksv1.ResponseStatus `json:"status"`
+	Message string                        `json:"message"`
+
 	Second string
 	First  int
 }
@@ -74,11 +78,47 @@ func (in *FakeResponse) DeepCopyObject() runtime.Object {
 	panic("implement me!")
 }
 
+func SecondFakeHook(*SecondFakeRequest, *SecondFakeResponse) {}
+
+type SecondFakeRequest struct {
+	metav1.TypeMeta `json:",inline"`
+
+	Cluster clusterv1alpha4.Cluster
+
+	Second string
+	First  int
+}
+
+func (in *SecondFakeRequest) DeepCopyObject() runtime.Object {
+	panic("implement me!")
+}
+
+type SecondFakeResponse struct {
+	metav1.TypeMeta `json:",inline"`
+
+	Status  runtimehooksv1.ResponseStatus `json:"status"`
+	Message string                        `json:"message"`
+
+	Second string
+	First  int
+}
+
+func (in *SecondFakeResponse) DeepCopyObject() runtime.Object {
+	panic("implement me!")
+}
+
 func init() {
-	catalogBuilder.RegisterHook(FakeHook, &runtimecatalog.HookMeta{
+	catalogBuilder.RegisterHook(FakeHook, &catalog.HookMeta{
 		Tags:        []string{"fake-tag"},
 		Summary:     "Fake summary",
 		Description: "Fake description",
+		Deprecated:  true,
+	})
+
+	catalogBuilder.RegisterHook(SecondFakeHook, &catalog.HookMeta{
+		Tags:        []string{"fake-tag"},
+		Summary:     "Second Fake summary",
+		Description: "Second Fake description",
 		Deprecated:  true,
 	})
 }

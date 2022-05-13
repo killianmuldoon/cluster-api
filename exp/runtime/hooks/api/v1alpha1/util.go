@@ -97,7 +97,7 @@ func getField(obj interface{}, field string) (interface{}, error) {
 	}
 	f := v.FieldByName(field)
 	if !f.IsValid() {
-		return "", fmt.Errorf("unexpected type. filed %s does not exist", field)
+		return "", fmt.Errorf("unexpected type. field %s does not exist", field)
 	}
 	return f.Interface(), nil
 }

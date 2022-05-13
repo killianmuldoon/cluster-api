@@ -24,14 +24,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	runtimecatalog "sigs.k8s.io/cluster-api/internal/runtime/catalog"
-	"sigs.k8s.io/cluster-api/internal/runtime/catalog/test/v1alpha2"
+	"sigs.k8s.io/cluster-api/internal/runtime/catalog"
+	"sigs.k8s.io/cluster-api/internal/runtime/test/v1alpha2"
 )
 
 func TestConversion(t *testing.T) {
 	g := NewWithT(t)
 
-	var c = runtimecatalog.New()
+	var c = catalog.New()
 	_ = AddToCatalog(c)
 	_ = v1alpha2.AddToCatalog(c)
 
