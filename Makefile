@@ -308,7 +308,7 @@ generate-go-conversions-core-exp: $(CONVERSION_GEN) ## Generate conversions go c
 
 .PHONY: generate-go-conversions-core-runtime
 generate-go-conversions-core-runtime: $(CONVERSION_GEN) ## Generate conversions go code for core runtime
-	$(MAKE) clean-generated-conversions SRC_DIRS="./internal/runtime/catalog/v1alpha1,./internal/runtime/catalog/v1alpha2"
+	$(MAKE) clean-generated-conversions SRC_DIRS="./internal/runtime/test/v1alpha1,./internal/runtime/test/v1alpha2"
 	$(CONVERSION_GEN) \
 		--input-dirs=./internal/runtime/test/v1alpha1 \
 		--input-dirs=./internal/runtime/test/v1alpha2 \

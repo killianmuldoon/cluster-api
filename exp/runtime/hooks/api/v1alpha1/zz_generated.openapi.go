@@ -33,6 +33,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.DiscoveryRequest":            schema_runtime_hooks_api_v1alpha1_DiscoveryRequest(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.DiscoveryResponse":           schema_runtime_hooks_api_v1alpha1_DiscoveryResponse(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.ExtensionHandler":            schema_runtime_hooks_api_v1alpha1_ExtensionHandler(ref),
+		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.ExtensionHandlerResponse":    schema_runtime_hooks_api_v1alpha1_ExtensionHandlerResponse(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.GeneratePatchesRequest":      schema_runtime_hooks_api_v1alpha1_GeneratePatchesRequest(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.GeneratePatchesRequestItem":  schema_runtime_hooks_api_v1alpha1_GeneratePatchesRequestItem(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.GeneratePatchesResponse":     schema_runtime_hooks_api_v1alpha1_GeneratePatchesResponse(ref),
@@ -183,6 +184,34 @@ func schema_runtime_hooks_api_v1alpha1_ExtensionHandler(ref common.ReferenceCall
 		},
 		Dependencies: []string{
 			"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.GroupVersionHook"},
+	}
+}
+
+func schema_runtime_hooks_api_v1alpha1_ExtensionHandlerResponse(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ExtensionHandlerResponse represents ths response from a single RuntimeExtensionHandler.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"Name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"Response": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/runtime.Object"),
+						},
+					},
+				},
+				Required: []string{"Name", "Response"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/runtime.Object"},
 	}
 }
 
