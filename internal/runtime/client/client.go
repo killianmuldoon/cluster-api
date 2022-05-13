@@ -77,8 +77,11 @@ type Client interface {
 	// Unregister unregisters the ExtensionConfig.
 	Unregister(extensionConfig *runtimev1.ExtensionConfig) error
 
-	// Hook returns a HookClient that is used to interact with the extension handlers for a specific hook.
-	Hook(hook catalog.Hook) HookClient
+	// CallAll calls all the extension registered for the hook.
+	CallAll(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.AggregatableResponse) error
+
+	// Call calls only the extension with the given name.
+	Call(ctx context.Context, name string, request, response runtime.Object) error
 }
 
 var _ Client = &client{}
@@ -157,44 +160,22 @@ func (c *client) Unregister(extensionConfig *runtimev1.ExtensionConfig) error {
 	return nil
 }
 
-func (c *client) Hook(hook catalog.Hook) HookClient {
-	return &hookClient{
-		client: c,
-		hook:   hook,
-	}
-}
-
-// HookClient is the client used to make calls of the runtime hooks and runtime extension handlers.
-type HookClient interface {
-	// CallAll calls all the extension registered for the hook.
-	CallAll(ctx context.Context, request runtime.Object, response runtimehooksv1.AggregatableResponse) error
-
-	// Call calls only the extension with the given name.
-	Call(ctx context.Context, name string, request, response runtime.Object) error
-}
-
-type hookClient struct {
-	client *client
-	hook   catalog.Hook
-}
-
-func (h *hookClient) CallAll(ctx context.Context, request runtime.Object, response runtimehooksv1.AggregatableResponse) error {
-	gvh, err := h.client.catalog.GroupVersionHook(h.hook)
+func (c *client) CallAll(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.AggregatableResponse) error {
+	gvh, err := c.catalog.GroupVersionHook(hook)
 	if err != nil {
 		return errors.Wrap(err, "failed to compute GroupVersionHook")
 	}
-	registrations, err := h.client.registry.List(catalog.GroupHook{Group: gvh.Group, Hook: gvh.Hook})
+	registrations, err := c.registry.List(catalog.GroupHook{Group: gvh.Group, Hook: gvh.Hook})
 	if err != nil {
 		return errors.Wrap(err, "failed to retrieve ExtensionHandlers information")
 	}
 	responses := []*runtimehooksv1.ExtensionHandlerResponse{}
-	// Future-work: Call the extension handlers concurrently.
 	for _, registration := range registrations {
-		tmpResponse, err := h.client.catalog.NewResponse(gvh)
+		tmpResponse, err := c.catalog.NewResponse(gvh)
 		if err != nil {
 			return errors.Wrap(err, "failed to create respons object")
 		}
-		err = h.Call(ctx, registration.Name, request, tmpResponse)
+		err = c.Call(ctx, registration.Name, request, tmpResponse)
 		// If at least once of the extension handlers failed lets short-circuit here and return early.
 		if err != nil {
 			return errors.Wrapf(err, "ExtensionHandler %s failed", registration.Name)
@@ -210,17 +191,17 @@ func (h *hookClient) CallAll(ctx context.Context, request runtime.Object, respon
 	return nil
 }
 
-func (h *hookClient) Call(ctx context.Context, name string, request, response runtime.Object) error {
-	registration, err := h.client.registry.Get(name)
+func (c *client) Call(ctx context.Context, name string, request, response runtime.Object) error {
+	registration, err := c.registry.Get(name)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to retrieve registration information for %s", name)
 	}
 	var timeoutDuration time.Duration
 	if registration.TimeoutSeconds != nil {
 		timeoutDuration = time.Duration(*registration.TimeoutSeconds) * time.Second
 	}
 	opts := &httpCallOptions{
-		catalog: h.client.catalog,
+		catalog: c.catalog,
 		config:  registration.ClientConfig,
 		gvh:     registration.GroupVersionHook,
 		name:    strings.TrimSuffix(registration.Name, "."+registration.ExtensionConfigName),
@@ -233,7 +214,12 @@ func (h *hookClient) Call(ctx context.Context, name string, request, response ru
 		ignore := *registration.FailurePolicy == runtimev1.FailurePolicyIgnore
 		if _, ok := err.(*errCallingExtensionHandler); ok && ignore {
 			// Update the response to a default success response and return.
+			// - Set status to success
+			// - Set message to empty string
 			if err := runtimehooksv1.SetStatus(response, runtimehooksv1.ResponseStatusSuccess); err != nil {
+				return errors.Wrap(err, "failed to construct default success response")
+			}
+			if err := runtimehooksv1.SetMessage(response, ""); err != nil {
 				return errors.Wrap(err, "failed to construct default success response")
 			}
 			return nil
@@ -357,6 +343,13 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 		return &errCallingExtensionHandler{
 			extensionHandlerName: opts.name,
 			err:                  errors.Wrap(err, "failed to make the http call"),
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return &errCallingExtensionHandler{
+			extensionHandlerName: opts.name,
+			err:                  fmt.Errorf("non 200 response status received"),
 		}
 	}
 
