@@ -35,7 +35,6 @@ import (
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
-	utilconversion "sigs.k8s.io/cluster-api/util/conversion"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -90,9 +89,9 @@ func (r *MachineReconciler) reconcilePhase(_ context.Context, m *clusterv1.Machi
 func (r *MachineReconciler) reconcileExternal(ctx context.Context, cluster *clusterv1.Cluster, m *clusterv1.Machine, ref *corev1.ObjectReference) (external.ReconcileOutput, error) {
 	logger := r.Log.WithValues("machine", m.Name, "namespace", m.Namespace)
 
-	if err := utilconversion.ConvertReferenceAPIContract(ctx, logger, r.Client, r.restConfig, ref); err != nil {
-		return external.ReconcileOutput{}, err
-	}
+	//if err := utilconversion.ConvertReferenceAPIContract(ctx, logger, r.Client, r.restConfig, ref); err != nil {
+	//	return external.ReconcileOutput{}, err
+	//}
 
 	obj, err := external.Get(ctx, r.Client, ref, m.Namespace)
 	if err != nil {

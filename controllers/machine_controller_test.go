@@ -18,6 +18,10 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"sigs.k8s.io/cluster-api/api/v1alpha2"
+	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	"testing"
 	"time"
@@ -353,6 +357,599 @@ func TestMachine_Reconcile(t *testing.T) {
 			}
 			return false
 		}, timeout).Should(BeTrue())
+	})
+}
+
+func TestMachine_ForVIssue(t *testing.T) {
+	t.Run("reconcile create", func(t *testing.T) {
+		jsonKubeadmConfig := []byte(`        {
+            "apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha2",
+            "kind": "KubeadmConfig",
+            "metadata": {
+                "annotations": {
+                    "cluster.x-k8s.io/cloned-from-groupkind": "KubeadmConfigTemplate.bootstrap.cluster.x-k8s.io",
+                    "cluster.x-k8s.io/cloned-from-name": "gks-rat-stg-5-md-0",
+                    "cluster.x-k8s.io/conversion-data": "{\"apiVersion\":\"bootstrap.cluster.x-k8s.io/v1alpha3\",\"kind\":\"KubeadmConfig\",\"spec\":{\"files\":[{\"content\":\"version = 2\\n[plugins]\\n  [plugins.\\\"io.containerd.grpc.v1.cri\\\"]\\n    sandbox_image = \\\"harbor-int.tools.rat.gks.vodafone.com/tkg/pause:3.2\\\"\\n     [plugins.\\\"io.containerd.grpc.v1.cri\\\".containerd]\\n       default_runtime_name = \\\"runc\\\"\\n        [plugins.\\\"io.containerd.grpc.v1.cri\\\".containerd.runtimes]\\n          [plugins.\\\"io.containerd.grpc.v1.cri\\\".containerd.runtimes.runc]\\n            runtime_type = \\\"io.containerd.runc.v2\\\"\\n          [plugins.\\\"io.containerd.grpc.v1.cri\\\".containerd.runtimes.test-handler]\\n             runtime_type = \\\"io.containerd.runc.v2\\\"\\n        [plugins.\\\"io.containerd.grpc.v1.cri\\\".registry.mirrors]\\n          [plugins.\\\"io.containerd.grpc.v1.cri\\\".registry.mirrors.\\\"harbor-int.tools.rat.gks.vodafone.com\\\"]\\n            endpoint = [\\\"https://harbor-int.tools.rat.gks.vodafone.com\\\"]\\n        [plugins.\\\"io.containerd.grpc.v1.cri\\\".registry.configs.\\\"harbor-int.tools.rat.gks.vodafone.com\\\".tls]\\n          insecure_skip_verify = true\\n          [plugins.\\\"io.containerd.grpc.v1.cri\\\".registry.mirrors.\\\"registry-rat.prd.harbor.vodafone.com\\\"]\\n            endpoint = [\\\"https://registry-rat.prd.harbor.vodafone.com\\\"]\\n        [plugins.\\\"io.containerd.grpc.v1.cri\\\".registry.configs.\\\"registry-rat.prd.harbor.vodafone.com\\\".tls]\\n          insecure_skip_verify = true\\n\",\"path\":\"/etc/containerd/config.toml\"}],\"joinConfiguration\":{\"discovery\":{},\"nodeRegistration\":{\"criSocket\":\"/var/run/containerd/containerd.sock\",\"kubeletExtraArgs\":{\"cloud-provider\":\"external\",\"tls-cipher-suites\":\"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\"},\"name\":\"{{ ds.meta_data.hostname }}\"}},\"preKubeadmCommands\":[\"hostname \\\"{{ ds.meta_data.hostname }}\\\"\",\"echo \\\"::1         ipv6-localhost ipv6-loopback\\\" \\u003e/etc/hosts\",\"echo \\\"127.0.0.1   localhost\\\" \\u003e\\u003e/etc/hosts\",\"echo \\\"127.0.0.1   {{ ds.meta_data.hostname }}\\\" \\u003e\\u003e/etc/hosts\",\"echo \\\"{{ ds.meta_data.hostname }}\\\" \\u003e/etc/hostname\",\"echo 'server 10.78.162.70 iburst prefer' \\u003e\\u003e /etc/chrony.conf\",\"echo 'server 10.78.162.86 iburst prefer' \\u003e\\u003e /etc/chrony.conf\",\"sed -i '/^pool/d' /etc/chrony.conf\",\"systemctl restart chronyd\"],\"useExperimentalRetryJoin\":true,\"users\":[{\"name\":\"capv\",\"sshAuthorizedKeys\":[\"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC8e8fKs4zzIIHY1Gj4F/SVQlE3czHF8uxIq4XuJ/jZ8bmfQDUqbwB7s+D3q7ISejBHph49t/FKjXqBDyBJga8JE0Ju5GFPbjsBnboXoZpA3sAItDtKPr+3Z1Qs1gxLc6NCf8X4MN4YwzKlFidDIzPWVla+bc38CoN7d8ghwdH+Kq4NYTraO4vCkdagH5f1BvxYwAyDmBp3zkkzuet7ra3SiPhM3WzkLtw/JzAjkS7mFtlUheAgnGwNKM2k9gDFemeJ39pBFjKEjTEF/uuOZJfMTsGI6POspQXWnz55FOOHzrziYsAdyZIowXnSH11IMtT0QN/1Ly97MV9LLxvAvlxBwQk0LyupMRRtjBsESu/FqPt0nL7tiLnSRDlz8/coGBaghXLfZ56RIesic4di9A3BSvK+t9BmtTg7JDHuLddGgaCXttaxRLF+/+9f0WCgBd2jV9tiejmrU9pc7OAe8nSd1/rf2kcU2mP36+WFLkz0I6MUJIlcjSyOB9vtEXU9KQcc6Zf/NewXSNbIaIPJHteZ49OkjV0LPtBvsE26lDyPMx7XHmfEKDk6tDjlOJFR/wA5O9qgklH0jxbVUP2L5Jl5ZTYxhNLjuUudijk3DaRZMQn2Xl1ATCjD9hujyUfo6YTtvJyGVLigHlpyQsjlqkWU/TVwg+nUg7hn2owY27eU7w==\"],\"sudo\":\"ALL=(ALL) NOPASSWD:ALL\"}]},\"status\":{}}"
+                },
+                "creationTimestamp": "2022-05-18T10:48:58Z",
+                "generation": 1,
+                "labels": {
+                    "cluster.x-k8s.io/cluster-name": "gks-rat-stg-5",
+                    "machine-template-hash": "2380310694",
+                    "node-pool": "gks-rat-stg-5-worker-pool"
+                },
+                "managedFields": [
+                    {
+                        "apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha3",
+                        "fieldsType": "FieldsV1",
+                        "fieldsV1": {
+                            "f:metadata": {
+                                "f:annotations": {
+                                    ".": {},
+                                    "f:cluster.x-k8s.io/cloned-from-groupkind": {},
+                                    "f:cluster.x-k8s.io/cloned-from-name": {}
+                                },
+                                "f:labels": {
+                                    ".": {},
+                                    "f:cluster.x-k8s.io/cluster-name": {},
+                                    "f:machine-template-hash": {},
+                                    "f:node-pool": {}
+                                }
+                            },
+                            "f:spec": {
+                                ".": {},
+                                "f:files": {},
+                                "f:joinConfiguration": {
+                                    ".": {},
+                                    "f:nodeRegistration": {
+                                        ".": {},
+                                        "f:criSocket": {},
+                                        "f:kubeletExtraArgs": {
+                                            ".": {},
+                                            "f:cloud-provider": {},
+                                            "f:tls-cipher-suites": {}
+                                        },
+                                        "f:name": {}
+                                    }
+                                },
+                                "f:preKubeadmCommands": {},
+                                "f:useExperimentalRetryJoin": {},
+                                "f:users": {}
+                            }
+                        },
+                        "manager": "manager",
+                        "operation": "Update",
+                        "time": "2022-05-18T10:48:58Z"
+                    }
+                ],
+                "name": "gks-rat-stg-5-md-0-mp7fj",
+                "namespace": "default",
+                "uid": "dbc19bc1-21ee-4205-a812-1ba3a6f6ec05"
+            },
+            "spec": {
+                "files": [
+                    {
+                        "content": "version = 2\n[plugins]\n  [plugins.\"io.containerd.grpc.v1.cri\"]\n    sandbox_image = \"harbor-int.tools.rat.gks.vodafone.com/tkg/pause:3.2\"\n     [plugins.\"io.containerd.grpc.v1.cri\".containerd]\n       default_runtime_name = \"runc\"\n        [plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes]\n          [plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.runc]\n            runtime_type = \"io.containerd.runc.v2\"\n          [plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.test-handler]\n             runtime_type = \"io.containerd.runc.v2\"\n        [plugins.\"io.containerd.grpc.v1.cri\".registry.mirrors]\n          [plugins.\"io.containerd.grpc.v1.cri\".registry.mirrors.\"harbor-int.tools.rat.gks.vodafone.com\"]\n            endpoint = [\"https://harbor-int.tools.rat.gks.vodafone.com\"]\n        [plugins.\"io.containerd.grpc.v1.cri\".registry.configs.\"harbor-int.tools.rat.gks.vodafone.com\".tls]\n          insecure_skip_verify = true\n          [plugins.\"io.containerd.grpc.v1.cri\".registry.mirrors.\"registry-rat.prd.harbor.vodafone.com\"]\n            endpoint = [\"https://registry-rat.prd.harbor.vodafone.com\"]\n        [plugins.\"io.containerd.grpc.v1.cri\".registry.configs.\"registry-rat.prd.harbor.vodafone.com\".tls]\n          insecure_skip_verify = true\n",
+                        "path": "/etc/containerd/config.toml"
+                    }
+                ],
+                "joinConfiguration": {
+                    "discovery": {},
+                    "nodeRegistration": {
+                        "criSocket": "/var/run/containerd/containerd.sock",
+                        "kubeletExtraArgs": {
+                            "cloud-provider": "external",
+                            "tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+                        },
+                        "name": "{{ ds.meta_data.hostname }}"
+                    }
+                },
+                "preKubeadmCommands": [
+                    "hostname \"{{ ds.meta_data.hostname }}\"",
+                    "echo \"::1         ipv6-localhost ipv6-loopback\" \u003e/etc/hosts",
+                    "echo \"127.0.0.1   localhost\" \u003e\u003e/etc/hosts",
+                    "echo \"127.0.0.1   {{ ds.meta_data.hostname }}\" \u003e\u003e/etc/hosts",
+                    "echo \"{{ ds.meta_data.hostname }}\" \u003e/etc/hostname",
+                    "echo 'server 10.78.162.70 iburst prefer' \u003e\u003e /etc/chrony.conf",
+                    "echo 'server 10.78.162.86 iburst prefer' \u003e\u003e /etc/chrony.conf",
+                    "sed -i '/^pool/d' /etc/chrony.conf",
+                    "systemctl restart chronyd"
+                ],
+                "users": [
+                    {
+                        "name": "capv",
+                        "sshAuthorizedKeys": [
+                            "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC8e8fKs4zzIIHY1Gj4F/SVQlE3czHF8uxIq4XuJ/jZ8bmfQDUqbwB7s+D3q7ISejBHph49t/FKjXqBDyBJga8JE0Ju5GFPbjsBnboXoZpA3sAItDtKPr+3Z1Qs1gxLc6NCf8X4MN4YwzKlFidDIzPWVla+bc38CoN7d8ghwdH+Kq4NYTraO4vCkdagH5f1BvxYwAyDmBp3zkkzuet7ra3SiPhM3WzkLtw/JzAjkS7mFtlUheAgnGwNKM2k9gDFemeJ39pBFjKEjTEF/uuOZJfMTsGI6POspQXWnz55FOOHzrziYsAdyZIowXnSH11IMtT0QN/1Ly97MV9LLxvAvlxBwQk0LyupMRRtjBsESu/FqPt0nL7tiLnSRDlz8/coGBaghXLfZ56RIesic4di9A3BSvK+t9BmtTg7JDHuLddGgaCXttaxRLF+/+9f0WCgBd2jV9tiejmrU9pc7OAe8nSd1/rf2kcU2mP36+WFLkz0I6MUJIlcjSyOB9vtEXU9KQcc6Zf/NewXSNbIaIPJHteZ49OkjV0LPtBvsE26lDyPMx7XHmfEKDk6tDjlOJFR/wA5O9qgklH0jxbVUP2L5Jl5ZTYxhNLjuUudijk3DaRZMQn2Xl1ATCjD9hujyUfo6YTtvJyGVLigHlpyQsjlqkWU/TVwg+nUg7hn2owY27eU7w=="
+                        ],
+                        "sudo": "ALL=(ALL) NOPASSWD:ALL"
+                    }
+                ]
+            },
+            "status": {}
+        }
+`)
+		jsonInfra := []byte(`        {
+            "apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha2",
+            "kind": "VSphereMachine",
+            "metadata": {
+                "annotations": {
+                    "cluster.x-k8s.io/cloned-from-groupkind": "VSphereMachineTemplate.infrastructure.cluster.x-k8s.io",
+                    "cluster.x-k8s.io/cloned-from-name": "gks-rat-stg-5-md-0-v1-18-6-vmware-1-zwg0a-v1-19-3-vmware-1-34tnj-v1-20-5-vmware-1-awoor",
+                    "cluster.x-k8s.io/conversion-data": "{\"apiVersion\":\"infrastructure.cluster.x-k8s.io/v1alpha3\",\"kind\":\"VSphereMachine\",\"spec\":{\"cloneMode\":\"fullClone\",\"datacenter\":\"/DEGKS1\",\"datastore\":\"/DEGKS1/datastore/non-prod_disks/DEGKS_CMP01_005\",\"diskGiB\":25,\"folder\":\"/DEGKS1/vm/tkg-rat-stg\",\"memoryMiB\":4096,\"network\":{\"devices\":[{\"dhcp4\":true,\"networkName\":\"gv_11.99.135.0_24_UC.MNG\"}]},\"numCPUs\":2,\"resourcePool\":\"/DEGKS1/host/DEGKSCMP01/Resources/tkg-rat-stg\",\"server\":\"198.19.117.25\",\"template\":\"/DEGKS1/vm/tkg/photon-3-kube-v1.20.5+vmware.1\"},\"status\":{\"ready\":false}}"
+                },
+                "creationTimestamp": "2022-05-18T10:48:58Z",
+                "generation": 1,
+                "labels": {
+                    "cluster.x-k8s.io/cluster-name": "gks-rat-stg-5",
+                    "machine-template-hash": "2380310694",
+                    "node-pool": "gks-rat-stg-5-worker-pool"
+                },
+                "managedFields": [
+                    {
+                        "apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha3",
+                        "fieldsType": "FieldsV1",
+                        "fieldsV1": {
+                            "f:metadata": {
+                                "f:annotations": {
+                                    ".": {},
+                                    "f:cluster.x-k8s.io/cloned-from-groupkind": {},
+                                    "f:cluster.x-k8s.io/cloned-from-name": {}
+                                },
+                                "f:labels": {
+                                    ".": {},
+                                    "f:cluster.x-k8s.io/cluster-name": {},
+                                    "f:machine-template-hash": {},
+                                    "f:node-pool": {}
+                                }
+                            },
+                            "f:spec": {
+                                ".": {},
+                                "f:cloneMode": {},
+                                "f:datacenter": {},
+                                "f:datastore": {},
+                                "f:diskGiB": {},
+                                "f:folder": {},
+                                "f:memoryMiB": {},
+                                "f:network": {
+                                    ".": {},
+                                    "f:devices": {}
+                                },
+                                "f:numCPUs": {},
+                                "f:resourcePool": {},
+                                "f:server": {},
+                                "f:template": {}
+                            }
+                        },
+                        "manager": "manager",
+                        "operation": "Update",
+                        "time": "2022-05-18T10:48:58Z"
+                    }
+                ],
+                "name": "gks-rat-stg-5-md-0-v1-18-6-vmware-1-zwg0a-v1-19-3-vmware-1tkrj5",
+                "namespace": "default"
+            },
+            "spec": {
+                "datacenter": "/DEGKS1",
+                "diskGiB": 25,
+                "memoryMiB": 4096,
+                "network": {
+                    "devices": [
+                        {
+                            "dhcp4": true,
+                            "networkName": "gv_11.99.135.0_24_UC.MNG"
+                        }
+                    ]
+                },
+                "numCPUs": 2,
+                "template": "/DEGKS1/vm/tkg/photon-3-kube-v1.20.5+vmware.1"
+            },
+            "status": {
+                "ready": false
+            }
+        }`)
+		jsonMachine := []byte(`    {
+			"apiVersion": "cluster.x-k8s.io/v1alpha2",
+				"kind": "Machine",
+				"metadata": {
+				"annotations": {
+					"cluster.x-k8s.io/conversion-data": "{\"apiVersion\":\"cluster.x-k8s.io/v1alpha3\",\"kind\":\"Machine\",\"spec\":{\"bootstrap\":{\"configRef\":{\"apiVersion\":\"bootstrap.cluster.x-k8s.io/v1alpha3\",\"kind\":\"KubeadmConfig\",\"name\":\"gks-rat-stg-5-md-0-mp7fj\",\"namespace\":\"default\",\"uid\":\"dbc19bc1-21ee-4205-a812-1ba3a6f6ec05\"}},\"clusterName\":\"gks-rat-stg-5\",\"infrastructureRef\":{\"apiVersion\":\"infrastructure.cluster.x-k8s.io/v1alpha3\",\"kind\":\"VSphereMachine\",\"name\":\"gks-rat-stg-5-md-0-v1-18-6-vmware-1-zwg0a-v1-19-3-vmware-1tkrj5\",\"namespace\":\"default\",\"uid\":\"9b5efb28-8c5f-4c66-be2c-9bd528d71e45\"},\"version\":\"v1.20.5+vmware.1\"},\"status\":{\"bootstrapReady\":false,\"infrastructureReady\":false}}"
+				},
+				"creationTimestamp": "2022-05-18T10:48:58Z",
+					"generateName": "gks-rat-stg-5-md-0-67d4754bf8-",
+					"generation": 1,
+					"labels": {
+					"cluster.x-k8s.io/cluster-name": "gks-rat-stg-5",
+						"machine-template-hash": "2380310694",
+						"node-pool": "gks-rat-stg-5-worker-pool"
+				},
+				"managedFields": [
+		{
+		"apiVersion": "cluster.x-k8s.io/v1alpha3",
+		"fieldsType": "FieldsV1",
+		"fieldsV1": {
+		"f:metadata": {
+		"f:generateName": {},
+		"f:labels": {
+		".": {},
+		"f:cluster.x-k8s.io/cluster-name": {},
+		"f:machine-template-hash": {},
+		"f:node-pool": {}
+		},
+		"f:ownerReferences": {
+		".": {},
+		"k:{\"uid\":\"c4766b92-4850-44f6-a12e-9ac205332240\"}": {
+		".": {},
+		"f:apiVersion": {},
+		"f:blockOwnerDeletion": {},
+		"f:controller": {},
+		"f:kind": {},
+		"f:name": {},
+		"f:uid": {}
+		}
+		}
+		},
+		"f:spec": {
+		".": {},
+		"f:bootstrap": {
+		".": {},
+		"f:configRef": {
+		".": {},
+		"f:apiVersion": {},
+		"f:kind": {},
+		"f:name": {},
+		"f:namespace": {},
+		"f:uid": {}
+		}
+		},
+		"f:clusterName": {},
+		"f:infrastructureRef": {
+		".": {},
+		"f:apiVersion": {},
+		"f:kind": {},
+		"f:name": {},
+		"f:namespace": {},
+		"f:uid": {}
+		},
+		"f:version": {}
+		},
+		"f:status": {
+		".": {},
+		"f:bootstrapReady": {},
+		"f:infrastructureReady": {}
+		}
+		},
+		"manager": "manager",
+		"operation": "Update",
+		"time": "2022-05-18T10:48:58Z"
+		}
+		],
+		"name": "gks-rat-stg-5-md-0-67d4754bf8-s8265",
+		"namespace": "default",
+		"ownerReferences": [
+		{
+		"apiVersion": "cluster.x-k8s.io/v1alpha3",
+		"blockOwnerDeletion": true,
+		"controller": true,
+		"kind": "MachineSet",
+		"name": "gks-rat-stg-5-md-0-67d4754bf8",
+		"uid": "c4766b92-4850-44f6-a12e-9ac205332240"
+		}
+		],
+		"uid": "a38544a5-cd13-46eb-bb55-20a2828fd279"
+		},
+		"spec": {
+		"bootstrap": {
+		"configRef": {
+		"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha3",
+		"kind": "KubeadmConfig",
+		"name": "gks-rat-stg-5-md-0-mp7fj",
+		"namespace": "default",
+		"uid": "dbc19bc1-21ee-4205-a812-1ba3a6f6ec05"
+		}
+		},
+		"infrastructureRef": {
+		"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha3",
+		"kind": "VSphereMachine",
+		"name": "gks-rat-stg-5-md-0-v1-18-6-vmware-1-zwg0a-v1-19-3-vmware-1tkrj5",
+		"namespace": "default",
+		"uid": "9b5efb28-8c5f-4c66-be2c-9bd528d71e45"
+		},
+		"metadata": {},
+		"version": "v1.20.5+vmware.1"
+		},
+		"status": {
+		"bootstrapReady": false,
+		"infrastructureReady": false
+		}
+		}
+`)
+		jsonCluster := []byte(`        {
+            "apiVersion": "cluster.x-k8s.io/v1alpha2",
+            "kind": "Cluster",
+            "metadata": {
+                "annotations": {
+                    "TKGOperationInfo": "{\"Operation\":\"Upgrade\",\"OperationStartTimestamp\":\"2021-07-14 14:09:28.116665821 +0000 UTC\",\"OperationTimeout\":900}",
+                    "TKGOperationLastObservedTimestamp": "2021-07-14 14:48:43.55389006 +0000 UTC",
+                    "cluster.x-k8s.io/conversion-data": "{\"apiVersion\":\"cluster.x-k8s.io/v1alpha3\",\"kind\":\"Cluster\",\"spec\":{\"clusterNetwork\":{\"pods\":{\"cidrBlocks\":[\"100.96.0.0/11\"]},\"services\":{\"cidrBlocks\":[\"100.64.0.0/13\"]}},\"controlPlaneEndpoint\":{\"host\":\"11.99.135.252\",\"port\":6443},\"controlPlaneRef\":{\"apiVersion\":\"controlplane.cluster.x-k8s.io/v1alpha3\",\"kind\":\"KubeadmControlPlane\",\"name\":\"gks-rat-stg-5-control-plane\",\"namespace\":\"default\"},\"infrastructureRef\":{\"apiVersion\":\"infrastructure.cluster.x-k8s.io/v1alpha3\",\"kind\":\"VSphereCluster\",\"name\":\"gks-rat-stg-5\",\"namespace\":\"default\"}},\"status\":{\"conditions\":[{\"lastTransitionTime\":\"2022-04-07T12:01:03Z\",\"status\":\"True\",\"type\":\"Ready\"},{\"lastTransitionTime\":\"2021-11-10T10:39:22Z\",\"status\":\"True\",\"type\":\"ControlPlaneReady\"},{\"lastTransitionTime\":\"2022-04-07T12:01:03Z\",\"status\":\"True\",\"type\":\"InfrastructureReady\"}],\"controlPlaneInitialized\":true,\"controlPlaneReady\":true,\"infrastructureReady\":true,\"observedGeneration\":2,\"phase\":\"Provisioned\"}}",
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"cluster.x-k8s.io/v1alpha3\",\"kind\":\"Cluster\",\"metadata\":{\"annotations\":{},\"name\":\"gks-rat-stg-5\",\"namespace\":\"default\"},\"spec\":{\"clusterNetwork\":{\"pods\":{\"cidrBlocks\":[\"100.96.0.0/11\"]},\"services\":{\"cidrBlocks\":[\"100.64.0.0/13\"]}},\"controlPlaneRef\":{\"apiVersion\":\"controlplane.cluster.x-k8s.io/v1alpha3\",\"kind\":\"KubeadmControlPlane\",\"name\":\"gks-rat-stg-5-control-plane\"},\"infrastructureRef\":{\"apiVersion\":\"infrastructure.cluster.x-k8s.io/v1alpha3\",\"kind\":\"VSphereCluster\",\"name\":\"gks-rat-stg-5\"}}}\n",
+                    "tkg/plan": "prod"
+                },
+                "creationTimestamp": "2020-08-05T15:37:47Z",
+                "finalizers": [
+                    "cluster.cluster.x-k8s.io"
+                ],
+                "generation": 2,
+                "labels": {
+                    "tanzuKubernetesRelease": "v1.20.5---vmware.1-tkg.1",
+                    "tkg.tanzu.vmware.com/cluster-name": "gks-rat-stg-5"
+                },
+                "managedFields": [
+                    {
+                        "apiVersion": "cluster.x-k8s.io/v1alpha3",
+                        "fieldsType": "FieldsV1",
+                        "fieldsV1": {
+                            "f:metadata": {
+                                "f:annotations": {
+                                    ".": {},
+                                    "f:kubectl.kubernetes.io/last-applied-configuration": {}
+                                }
+                            },
+                            "f:spec": {
+                                ".": {},
+                                "f:clusterNetwork": {
+                                    ".": {},
+                                    "f:pods": {
+                                        ".": {},
+                                        "f:cidrBlocks": {}
+                                    },
+                                    "f:services": {
+                                        ".": {},
+                                        "f:cidrBlocks": {}
+                                    }
+                                },
+                                "f:controlPlaneRef": {
+                                    ".": {},
+                                    "f:apiVersion": {},
+                                    "f:kind": {},
+                                    "f:name": {}
+                                },
+                                "f:infrastructureRef": {
+                                    ".": {},
+                                    "f:apiVersion": {},
+                                    "f:kind": {},
+                                    "f:name": {}
+                                }
+                            }
+                        },
+                        "manager": "kubectl",
+                        "operation": "Update",
+                        "time": "2020-08-05T15:37:47Z"
+                    },
+                    {
+                        "apiVersion": "cluster.x-k8s.io/v1alpha3",
+                        "fieldsType": "FieldsV1",
+                        "fieldsV1": {
+                            "f:metadata": {
+                                "f:labels": {
+                                    ".": {},
+                                    "f:tkg.tanzu.vmware.com/cluster-name": {}
+                                }
+                            }
+                        },
+                        "manager": "tkg-1.2.1",
+                        "operation": "Update",
+                        "time": "2021-02-09T09:56:02Z"
+                    },
+                    {
+                        "apiVersion": "cluster.x-k8s.io/v1alpha3",
+                        "fieldsType": "FieldsV1",
+                        "fieldsV1": {
+                            "f:metadata": {
+                                "f:finalizers": {
+                                    ".": {},
+                                    "v:\"cluster.cluster.x-k8s.io\"": {}
+                                }
+                            },
+                            "f:spec": {
+                                "f:controlPlaneEndpoint": {
+                                    "f:host": {},
+                                    "f:port": {}
+                                }
+                            },
+                            "f:status": {
+                                ".": {},
+                                "f:conditions": {},
+                                "f:controlPlaneInitialized": {},
+                                "f:controlPlaneReady": {},
+                                "f:infrastructureReady": {},
+                                "f:observedGeneration": {},
+                                "f:phase": {}
+                            }
+                        },
+                        "manager": "manager",
+                        "operation": "Update",
+                        "time": "2021-07-12T10:30:20Z"
+                    },
+                    {
+                        "apiVersion": "cluster.x-k8s.io/v1alpha3",
+                        "fieldsType": "FieldsV1",
+                        "fieldsV1": {
+                            "f:metadata": {
+                                "f:annotations": {
+                                    "f:TKGOperationInfo": {},
+                                    "f:TKGOperationLastObservedTimestamp": {}
+                                },
+                                "f:labels": {
+                                    "f:tanzuKubernetesRelease": {}
+                                }
+                            }
+                        },
+                        "manager": "tanzu-plugin-cluster",
+                        "operation": "Update",
+                        "time": "2021-07-14T14:49:35Z"
+                    },
+                    {
+                        "apiVersion": "cluster.x-k8s.io/v1alpha3",
+                        "fieldsType": "FieldsV1",
+                        "fieldsV1": {
+                            "f:metadata": {
+                                "f:annotations": {
+                                    "f:tkg/plan": {}
+                                }
+                            }
+                        },
+                        "manager": "kubectl-edit",
+                        "operation": "Update",
+                        "time": "2021-07-26T15:31:44Z"
+                    }
+                ],
+                "name": "gks-rat-stg-5",
+                "namespace": "default",
+                "uid": "6bba82f3-007e-4f42-bcbc-bf9680ae8849"
+            },
+            "spec": {
+                "clusterNetwork": {
+                    "pods": {
+                        "cidrBlocks": [
+                            "100.96.0.0/11"
+                        ]
+                    },
+                    "services": {
+                        "cidrBlocks": [
+                            "100.64.0.0/13"
+                        ]
+                    }
+                },
+                "infrastructureRef": {
+                    "apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha3",
+                    "kind": "VSphereCluster",
+                    "name": "gks-rat-stg-5",
+                    "namespace": "default"
+                }
+            },
+            "status": {
+                "apiEndpoints": [
+                    {
+                        "host": "11.99.135.252",
+                        "port": 6443
+                    }
+                ],
+                "controlPlaneInitialized": true,
+                "infrastructureReady": true,
+                "phase": "Provisioned"
+            }
+        }
+`)
+		g := NewWithT(t)
+
+		tracker, err := remote.NewClusterCacheTracker(
+			log.Log,
+			testEnv.Manager,
+		)
+		if err != nil {
+			panic(fmt.Sprintf("unable to create cluster cache tracker: %v", err))
+		}
+		r := &MachineReconciler{
+			Client:   testEnv.GetClient(),
+			scheme:   testEnv.GetScheme(),
+			Log:      log.Log.WithName("controllers").WithName("Machine"),
+			Tracker:  tracker,
+			recorder: testEnv.GetEventRecorderFor("machine-controller"),
+		}
+
+		cluster := &v1alpha2.Cluster{}
+		g.Expect(json.Unmarshal(jsonCluster, cluster)).To(Succeed())
+		c := &clusterv1.Cluster{}
+
+		bootstrap := &bootstrapv1.KubeadmConfig{}
+		g.Expect(json.Unmarshal(jsonKubeadmConfig, bootstrap)).To(Succeed())
+
+		infra := &unstructured.Unstructured{}
+		g.Expect(json.Unmarshal(jsonInfra, infra)).To(Succeed())
+
+		machine := &v1alpha2.Machine{}
+		g.Expect(json.Unmarshal(jsonMachine, machine)).To(Succeed())
+		m := &clusterv1.Machine{}
+
+		g.Expect(machine.ConvertTo(m)).To(Succeed())
+		g.Expect(cluster.ConvertTo(c)).To(Succeed())
+
+		g.Expect(testEnv.CreateObj(ctx, c)).To(Succeed())
+		g.Expect(testEnv.CreateObj(ctx, bootstrap)).To(Succeed())
+		g.Expect(testEnv.CreateObj(ctx, m)).To(Succeed())
+		//	g.Expect(testEnv.CreateObj(ctx, infra)).To(Succeed())
+
+		time.Sleep(5 * time.Second)
+
+		b := &bootstrapv1.KubeadmConfig{}
+		g.Expect(testEnv.Get(ctx, util.ObjectKey(machine), m)).To(Succeed())
+		g.Expect(testEnv.Get(ctx, util.ObjectKey(bootstrap), b)).To(Succeed())
+
+		//Wait for reconciliation to happen when infra and bootstrap objects are not ready.
+		r.scheme = testEnv.GetScheme()
+		bootstrapv1.AddToScheme(testEnv.GetScheme())
+
+		g.Eventually(func() bool {
+			if _, err = r.Reconcile(ctrl.Request{util.ObjectKey(machine)}); err != nil {
+				return false
+			}
+			return false
+		}, time.Second*100000).Should(BeTrue())
+		//
+		//	// Set bootstrap ready.
+		//	bootstrapPatch := client.MergeFrom(defaultBootstrap.DeepCopy())
+		//	g.Expect(unstructured.SetNestedField(defaultBootstrap.Object, true, "status", "ready")).NotTo(HaveOccurred())
+		//	g.Expect(testEnv.Status().Patch(ctx, defaultBootstrap, bootstrapPatch)).To(Succeed())
+		//
+		//	// Set infrastructure ready.
+		//	infraMachinePatch := client.MergeFrom(infraMachine.DeepCopy())
+		//	g.Expect(unstructured.SetNestedField(infraMachine.Object, true, "status", "ready")).To(Succeed())
+		//	g.Expect(testEnv.Status().Patch(ctx, infraMachine, infraMachinePatch)).To(Succeed())
+		//
+		//	// Wait for Machine Ready Condition to become True.
+		//	g.Eventually(func() bool {
+		//		if err := testEnv.Get(ctx, key, machine); err != nil {
+		//			return false
+		//		}
+		//		if conditions.Has(machine, clusterv1.InfrastructureReadyCondition) != true {
+		//			return false
+		//		}
+		//		readyCondition := conditions.Get(machine, clusterv1.ReadyCondition)
+		//		return readyCondition.Status == corev1.ConditionTrue
+		//	}, timeout).Should(BeTrue())
+		//
+		//	g.Expect(testEnv.Delete(ctx, machine)).NotTo(HaveOccurred())
+		//	// Wait for Machine to be deleted.
+		//	g.Eventually(func() bool {
+		//		if err := testEnv.Get(ctx, key, machine); err != nil {
+		//			if apierrors.IsNotFound(err) {
+		//				return true
+		//			}
+		//		}
+		//		return false
+		//	}, timeout).Should(BeTrue())
+		//
+		//	// Check if Machine deletion successfully deleted infrastructure external reference.
+		//	keyInfra := client.ObjectKey{Name: infraMachine.GetName(), Namespace: infraMachine.GetNamespace()}
+		//	g.Eventually(func() bool {
+		//		if err := testEnv.Get(ctx, keyInfra, infraMachine); err != nil {
+		//			if apierrors.IsNotFound(err) {
+		//				return true
+		//			}
+		//		}
+		//		return false
+		//	}, timeout).Should(BeTrue())
+		//
+		//	// Check if Machine deletion successfully deleted bootstrap external reference.
+		//	keyBootstrap := client.ObjectKey{Name: defaultBootstrap.GetName(), Namespace: defaultBootstrap.GetNamespace()}
+		//	g.Eventually(func() bool {
+		//		if err := testEnv.Get(ctx, keyBootstrap, defaultBootstrap); err != nil {
+		//			if apierrors.IsNotFound(err) {
+		//				return true
+		//			}
+		//		}
+		//		return false
+		//	}, timeout).Should(BeTrue())
 	})
 }
 
