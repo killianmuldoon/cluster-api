@@ -367,19 +367,20 @@ func TestClient_CallExtension(t *testing.T) {
 		response runtimehooksv1.Response
 	}
 	tests := []struct {
-		name                   string
-		startServer            bool
-		registry               registry.ExtensionRegistry
-		mockResponse           runtime.Object
-		mockResponseStatusCode int
-		args                   args
-		wantErr                bool
+		name       string
+		registry   registry.ExtensionRegistry
+		args       args
+		testServer testServerConfig
+		wantErr    bool
 	}{
 		{
-			name:                   "should fail if ExtensionHandler information is not registered",
-			registry:               registry.New(),
-			mockResponse:           &fakev1alpha1.FakeResponse{},
-			mockResponseStatusCode: http.StatusOK,
+			name:     "should fail if ExtensionHandler information is not registered",
+			registry: registry.New(),
+			testServer: testServerConfig{
+				start:              true,
+				response:           &fakev1alpha1.FakeResponse{},
+				responseStatusCode: http.StatusOK,
+			},
 			args: args{
 				hook:     fakev1alpha1.FakeHook,
 				name:     "unregistered-extension",
@@ -389,10 +390,11 @@ func TestClient_CallExtension(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:                   "should when extension handler is not compatible with the hook",
-			registry:               registryWithExtensionHandlerWithFailPolicy,
-			mockResponse:           successResponse,
-			mockResponseStatusCode: http.StatusOK,
+			name:     "should fail when extension handler from the registry is not compatible with the hook arg",
+			registry: registryWithExtensionHandlerWithFailPolicy,
+			testServer: testServerConfig{
+				start: false,
+			},
 			args: args{
 				hook: fakev1alpha1.SecondFakeHook,
 				name: "valid-extension",
@@ -409,15 +411,16 @@ func TestClient_CallExtension(t *testing.T) {
 					},
 				},
 			},
-			startServer: false,
-			wantErr:     true,
+			wantErr: true,
 		},
 		{
-			name:                   "should succeed when calling ExtensionHandler with success response",
-			registry:               registryWithExtensionHandlerWithFailPolicy,
-			mockResponse:           successResponse,
-			mockResponseStatusCode: http.StatusOK,
-			args: args{
+			name:     "should succeed when calling ExtensionHandler with success response",
+			registry: registryWithExtensionHandlerWithFailPolicy,
+			testServer: testServerConfig{
+				start:              true,
+				response:           successResponse,
+				responseStatusCode: http.StatusOK,
+			}, args: args{
 				hook: fakev1alpha1.FakeHook,
 				name: "valid-extension",
 				request: &fakev1alpha1.FakeRequest{
@@ -433,15 +436,16 @@ func TestClient_CallExtension(t *testing.T) {
 					},
 				},
 			},
-			startServer: true,
-			wantErr:     false,
+			wantErr: false,
 		},
 		{
-			name:                   "should fail when calling ExtensionHandler with failure response",
-			registry:               registryWithExtensionHandlerWithFailPolicy,
-			mockResponse:           failureResponse,
-			mockResponseStatusCode: http.StatusOK,
-			args: args{
+			name:     "should fail when calling ExtensionHandler with failure response",
+			registry: registryWithExtensionHandlerWithFailPolicy,
+			testServer: testServerConfig{
+				start:              true,
+				response:           failureResponse,
+				responseStatusCode: http.StatusOK,
+			}, args: args{
 				hook: fakev1alpha1.FakeHook,
 				name: "valid-extension",
 				request: &fakev1alpha1.FakeRequest{
@@ -457,15 +461,14 @@ func TestClient_CallExtension(t *testing.T) {
 					},
 				},
 			},
-			startServer: true,
-			wantErr:     true,
+			wantErr: true,
 		},
 		{
-			name:                   "should succeed with unreachable extension and Ignore failure policy",
-			registry:               registryWithExtensionHandlerWithIgnorePolicy,
-			mockResponse:           failureResponse,
-			mockResponseStatusCode: http.StatusOK,
-			args: args{
+			name:     "should succeed with unreachable extension and Ignore failure policy",
+			registry: registryWithExtensionHandlerWithIgnorePolicy,
+			testServer: testServerConfig{
+				start: false,
+			}, args: args{
 				hook: fakev1alpha1.FakeHook,
 				name: "valid-extension",
 				request: &fakev1alpha1.FakeRequest{
@@ -481,15 +484,14 @@ func TestClient_CallExtension(t *testing.T) {
 					},
 				},
 			},
-			startServer: false,
-			wantErr:     false,
+			wantErr: false,
 		},
 		{
-			name:                   "should fail with unreachable extension and Fail failure policy",
-			registry:               registryWithExtensionHandlerWithFailPolicy,
-			mockResponse:           failureResponse,
-			mockResponseStatusCode: http.StatusOK,
-			args: args{
+			name:     "should fail with unreachable extension and Fail failure policy",
+			registry: registryWithExtensionHandlerWithFailPolicy,
+			testServer: testServerConfig{
+				start: false,
+			}, args: args{
 				hook: fakev1alpha1.FakeHook,
 				name: "valid-extension",
 				request: &fakev1alpha1.FakeRequest{
@@ -505,8 +507,7 @@ func TestClient_CallExtension(t *testing.T) {
 					},
 				},
 			},
-			startServer: false,
-			wantErr:     true,
+			wantErr: true,
 		},
 	}
 
@@ -514,16 +515,16 @@ func TestClient_CallExtension(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			if tt.startServer {
+			if tt.testServer.start {
 				l, err := net.Listen("tcp", testHostPort)
 				g.Expect(err).NotTo(HaveOccurred())
 				mux := http.NewServeMux()
 				mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-					respBody, err := json.Marshal(tt.mockResponse)
+					respBody, err := json.Marshal(tt.testServer.response)
 					if err != nil {
 						panic(err)
 					}
-					w.WriteHeader(tt.mockResponseStatusCode)
+					w.WriteHeader(tt.testServer.responseStatusCode)
 					_, _ = w.Write(respBody)
 				})
 				srv := httptest.NewUnstartedServer(mux)
@@ -535,12 +536,12 @@ func TestClient_CallExtension(t *testing.T) {
 				defer srv.Close()
 			}
 
-			ctlg := catalog.New()
-			_ = fakev1alpha1.AddToCatalog(ctlg)
-			_ = fakev1alpha2.AddToCatalog(ctlg)
+			cat := catalog.New()
+			_ = fakev1alpha1.AddToCatalog(cat)
+			_ = fakev1alpha2.AddToCatalog(cat)
 
 			c := New(Options{
-				Catalog:  ctlg,
+				Catalog:  cat,
 				Registry: tt.registry,
 			})
 
@@ -553,4 +554,10 @@ func TestClient_CallExtension(t *testing.T) {
 			}
 		})
 	}
+}
+
+type testServerConfig struct {
+	start              bool
+	response           runtime.Object
+	responseStatusCode int
 }

@@ -356,7 +356,7 @@ type GroupHook struct {
 }
 
 func (gh GroupHook) String() string {
-	if len(gh.Group) == 0 {
+	if gh.Group == "" {
 		return gh.Hook
 	}
 	return gh.Hook + "." + gh.Group

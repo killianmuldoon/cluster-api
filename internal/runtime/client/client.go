@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"net/http"
 	"net/url"
@@ -32,6 +31,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/transport"
@@ -184,7 +184,7 @@ func (c *client) CallAllExtensions(ctx context.Context, hook catalog.Hook, reque
 		}
 
 		tmpResponse := &runtimehooksv1.CommonResponse{
-			TypeMeta: v1.TypeMeta{Kind: responseDescriptor.GetObjectKind().GroupVersionKind().Kind,
+			TypeMeta: metav1.TypeMeta{Kind: responseDescriptor.GetObjectKind().GroupVersionKind().Kind,
 				APIVersion: responseDescriptor.GetObjectKind().GroupVersionKind().GroupVersion().String()},
 		}
 		err = c.CallExtension(ctx, hook, registration.Name, request, tmpResponse)
@@ -201,6 +201,7 @@ func (c *client) CallAllExtensions(ctx context.Context, hook catalog.Hook, reque
 }
 
 func aggregateResponses(responses []runtimehooksv1.Response) error {
+	// TODO:(killianmuldoon) implement proper aggregation logic.
 	return nil
 }
 
