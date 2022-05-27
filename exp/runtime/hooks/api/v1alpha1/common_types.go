@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -32,11 +31,9 @@ type Response interface {
 }
 
 // CommonResponse is the data structure common to all Response types.
-// +kubebuilder:object:root=true
 type CommonResponse struct {
-	metav1.TypeMeta `json:",inline"`
-	Message         string         `json:"message"`
-	Status          ResponseStatus `json:"status"`
+	Message string         `json:"message"`
+	Status  ResponseStatus `json:"status"`
 }
 
 // SetMessage sets the message field for the Response.

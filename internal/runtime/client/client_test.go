@@ -547,6 +547,7 @@ func TestClient_CallExtension(t *testing.T) {
 
 			ctx := context.Background()
 			err := c.CallExtension(ctx, tt.args.hook, tt.args.name, tt.args.request, tt.args.response)
+
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 			} else {

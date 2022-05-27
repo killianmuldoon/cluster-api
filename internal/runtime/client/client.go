@@ -26,12 +26,12 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/transport"
@@ -83,7 +83,7 @@ type Client interface {
 	// CallAllExtensions calls all the ExtensionHandler registered for the hook.
 	CallAllExtensions(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.Response) error
 
-	// CallExtension calls only the extension with the given name.
+	// CallExtension calls only the ExtensionHandler with the given name.
 	CallExtension(ctx context.Context, hook catalog.Hook, name string, request runtime.Object, response runtimehooksv1.Response) error
 }
 
@@ -178,15 +178,8 @@ func (c *client) CallAllExtensions(ctx context.Context, hook catalog.Hook, reque
 	}
 	responses := []runtimehooksv1.Response{}
 	for _, registration := range registrations {
-		responseDescriptor, err := c.catalog.NewResponse(gvh)
-		if err != nil {
-			return errors.Wrap(err, "failed to create response object")
-		}
-
-		tmpResponse := &runtimehooksv1.CommonResponse{
-			TypeMeta: metav1.TypeMeta{Kind: responseDescriptor.GetObjectKind().GroupVersionKind().Kind,
-				APIVersion: responseDescriptor.GetObjectKind().GroupVersionKind().GroupVersion().String()},
-		}
+		// Creates a new instance of the response parameter.
+		tmpResponse := reflect.New(reflect.TypeOf(response).Elem()).Interface().(runtimehooksv1.Response)
 		err = c.CallExtension(ctx, hook, registration.Name, request, tmpResponse)
 		// If one of the extension handlers fails lets short-circuit here and return early.
 		if err != nil {
@@ -247,17 +240,15 @@ func (c *client) CallExtension(ctx context.Context, hook catalog.Hook, name stri
 		ignore := *registration.FailurePolicy == runtimev1.FailurePolicyIgnore
 		if _, ok := err.(errCallingExtensionHandler); ok && ignore {
 			// Update the response to a default success response and return.
-			// - Set status to success
-			// - Set message to empty string
 			response.SetStatus(runtimehooksv1.ResponseStatusSuccess)
 			response.SetMessage("")
 			return nil
 		}
-		return errors.Wrap(err, "failed to call extension")
+		return errors.Wrap(err, "failed to call ExtensionHandler")
 	}
 	// If the received response is a failure then return an error.
 	if response.GetStatus() == runtimehooksv1.ResponseStatusFailure {
-		return fmt.Errorf("extensionHandler %s failed with message %s", name, response.GetMessage())
+		return fmt.Errorf("ExtensionHandler %s failed with message %s", name, response.GetMessage())
 	}
 	// Received a successful response from the extension handler. The `response` object
 	// is populated with the result. Return no error.
@@ -284,7 +275,6 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 	if err != nil {
 		return errors.Wrapf(err, "failed to compute URL of the extension handler %q", opts.name)
 	}
-
 	requireConversion := opts.gvh.Version != request.GetObjectKind().GroupVersionKind().Version
 
 	requestLocal := request

@@ -61,9 +61,7 @@ func (in *FakeRequest) DeepCopyObject() runtime.Object {
 type FakeResponse struct {
 	metav1.TypeMeta `json:",inline"`
 
-	Status  runtimehooksv1.ResponseStatus `json:"status"`
-	Message string                        `json:"message"`
-
+	runtimehooksv1.CommonResponse
 	Second string
 	First  int
 }

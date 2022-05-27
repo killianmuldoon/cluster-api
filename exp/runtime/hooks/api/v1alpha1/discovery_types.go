@@ -28,6 +28,8 @@ type DiscoveryRequest struct {
 	metav1.TypeMeta `json:",inline"`
 }
 
+var _ Response = &DiscoveryResponse{}
+
 // DiscoveryResponse represents the object received as a discovery response.
 // +kubebuilder:object:root=true
 type DiscoveryResponse struct {

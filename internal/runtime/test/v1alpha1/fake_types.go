@@ -72,6 +72,10 @@ type FakeResponse struct {
 	First  int
 }
 
+func (in *FakeResponse) DeepCopyObject() runtime.Object {
+	panic("implement me!")
+}
+
 func SecondFakeHook(*SecondFakeRequest, *SecondFakeResponse) {}
 
 type SecondFakeRequest struct {
