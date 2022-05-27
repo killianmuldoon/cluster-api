@@ -33,12 +33,7 @@ type DiscoveryRequest struct {
 type DiscoveryResponse struct {
 	metav1.TypeMeta `json:",inline"`
 
-	// Status of the call. One of "Success" or "Failure".
-	Status ResponseStatus `json:"status"`
-
-	// A human-readable description of the status of the call.
-	Message string `json:"message"`
-
+	CommonResponse `json:",inline"`
 	// Handlers defines the current ExtensionHandlers supported by an Extension.
 	// +listType=map
 	// +listMapKey=name

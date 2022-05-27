@@ -345,7 +345,9 @@ func TestClient_CallExtension(t *testing.T) {
 			Kind:       "FakeResponse",
 			APIVersion: fakev1alpha1.GroupVersion.String(),
 		},
-		Status: runtimehooksv1.ResponseStatusSuccess,
+		CommonResponse: runtimehooksv1.CommonResponse{
+			Status: runtimehooksv1.ResponseStatusSuccess,
+		},
 	}
 
 	failureResponse := &fakev1alpha1.FakeResponse{
@@ -353,14 +355,16 @@ func TestClient_CallExtension(t *testing.T) {
 			Kind:       "FakeResponse",
 			APIVersion: fakev1alpha1.GroupVersion.String(),
 		},
-		Status: runtimehooksv1.ResponseStatusFailure,
+		CommonResponse: runtimehooksv1.CommonResponse{
+			Status: runtimehooksv1.ResponseStatusFailure,
+		},
 	}
 
 	type args struct {
 		hook     catalog.Hook
 		name     string
 		request  runtime.Object
-		response runtime.Object
+		response runtimehooksv1.Response
 	}
 	tests := []struct {
 		name                   string

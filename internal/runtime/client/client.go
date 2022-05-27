@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"net/http"
 	"net/url"
@@ -80,10 +81,10 @@ type Client interface {
 	Unregister(extensionConfig *runtimev1.ExtensionConfig) error
 
 	// CallAllExtensions calls all the ExtensionHandler registered for the hook.
-	CallAllExtensions(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.AggregatableResponse) error
+	CallAllExtensions(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.Response) error
 
-	// Call calls only the extension with the given name.
-	CallExtension(ctx context.Context, hook catalog.Hook, name string, request, response runtime.Object) error
+	// CallExtension calls only the extension with the given name.
+	CallExtension(ctx context.Context, hook catalog.Hook, name string, request runtime.Object, response runtimehooksv1.Response) error
 }
 
 var _ Client = &client{}
@@ -122,8 +123,8 @@ func (c *client) Discover(ctx context.Context, extensionConfig *runtimev1.Extens
 		return nil, errors.Wrap(err, "failed to call the Discovery endpoint")
 	}
 	// Check to see if the response is a failure and handle the failure accordingly.
-	if response.Status == runtimehooksv1.ResponseStatusFailure {
-		return nil, fmt.Errorf("discovery failed with %v", response.Message)
+	if response.GetStatus() == runtimehooksv1.ResponseStatusFailure {
+		return nil, fmt.Errorf("discovery failed with %v", response.GetMessage())
 	}
 
 	modifiedExtensionConfig := extensionConfig.DeepCopy()
@@ -164,9 +165,9 @@ func (c *client) Unregister(extensionConfig *runtimev1.ExtensionConfig) error {
 
 // CallAllExtensions calls all the ExtensionHandlers registered for the hook.
 // The ExtensionHandler are called sequentially. The function exits immediately after any of the ExtensionHandlers return an error.
-// See `Call` for more details on when an ExtensionHandler returns an error.
+// See CallExtension for more details on when an ExtensionHandler returns an error.
 // The aggregate result of the ExtensionHandlers is updated into the response object passed to the function.
-func (c *client) CallAllExtensions(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.AggregatableResponse) error {
+func (c *client) CallAllExtensions(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.Response) error {
 	gvh, err := c.catalog.GroupVersionHook(hook)
 	if err != nil {
 		return errors.Wrap(err, "failed to compute GroupVersionHook")
@@ -175,29 +176,35 @@ func (c *client) CallAllExtensions(ctx context.Context, hook catalog.Hook, reque
 	if err != nil {
 		return errors.Wrapf(err, "failed to retrieve ExtensionHandlers for %s", gvh.GroupHook())
 	}
-	responses := []*runtimehooksv1.ExtensionHandlerResponse{}
+	responses := []runtimehooksv1.Response{}
 	for _, registration := range registrations {
-		tmpResponse, err := c.catalog.NewResponse(gvh)
+		responseDescriptor, err := c.catalog.NewResponse(gvh)
 		if err != nil {
 			return errors.Wrap(err, "failed to create response object")
 		}
+
+		tmpResponse := &runtimehooksv1.CommonResponse{
+			TypeMeta: v1.TypeMeta{Kind: responseDescriptor.GetObjectKind().GroupVersionKind().Kind,
+				APIVersion: responseDescriptor.GetObjectKind().GroupVersionKind().GroupVersion().String()},
+		}
 		err = c.CallExtension(ctx, hook, registration.Name, request, tmpResponse)
-		// If at least once of the extension handlers failed lets short-circuit here and return early.
+		// If one of the extension handlers fails lets short-circuit here and return early.
 		if err != nil {
 			return errors.Wrapf(err, "ExtensionHandler %s failed", registration.Name)
 		}
-		responses = append(responses, &runtimehooksv1.ExtensionHandlerResponse{
-			Name:     registration.Name,
-			Response: tmpResponse,
-		})
+		responses = append(responses, response)
 	}
-	if err := response.Aggregate(responses); err != nil {
+	if err := aggregateResponses(responses); err != nil {
 		return errors.Wrap(err, "failed to aggregate responses")
 	}
 	return nil
 }
 
-// Call make the calls to the extension with the given name.
+func aggregateResponses(responses []runtimehooksv1.Response) error {
+	return nil
+}
+
+// CallExtension make the call to the extension with the given name.
 // The response object passed will be updated with the response of the call.
 // An error is returned if the extension is not compatible with the hook.
 // If the ExtensionHandler returns a response with `Status` set to `Failure` the function returns an error
@@ -209,7 +216,7 @@ func (c *client) CallAllExtensions(ctx context.Context, hook catalog.Hook, reque
 // Nb. FailurePolicy does not affect the following kinds of errors:
 // - Internal errors. Examples: hooks is incompatible with ExtensionHandler, ExtensionHandler information is missing.
 // - Error when ExtensionHandler returns a response with `Status` set to `Failure`.
-func (c *client) CallExtension(ctx context.Context, hook catalog.Hook, name string, request, response runtime.Object) error {
+func (c *client) CallExtension(ctx context.Context, hook catalog.Hook, name string, request runtime.Object, response runtimehooksv1.Response) error {
 	gvh, err := c.catalog.GroupVersionHook(hook)
 	if err != nil {
 		return errors.Wrap(err, "failed to compute GroupVersionHook")
@@ -219,7 +226,7 @@ func (c *client) CallExtension(ctx context.Context, hook catalog.Hook, name stri
 		return errors.Wrapf(err, "failed to retrieve ExtensionHandler with name %q", name)
 	}
 	if gvh.GroupHook() != registration.GroupVersionHook.GroupHook() {
-		return fmt.Errorf("ExtensionHandler %q does not support %s", name, gvh.GroupHook())
+		return fmt.Errorf("ExtensionHandler %q does not match group %s, hook %s", name, gvh.Group, gvh.Hook)
 	}
 	var timeoutDuration time.Duration
 	if registration.TimeoutSeconds != nil {
@@ -241,27 +248,15 @@ func (c *client) CallExtension(ctx context.Context, hook catalog.Hook, name stri
 			// Update the response to a default success response and return.
 			// - Set status to success
 			// - Set message to empty string
-			if err := runtimehooksv1.SetStatus(response, runtimehooksv1.ResponseStatusSuccess); err != nil {
-				return errors.Wrap(err, "failed to construct default success response")
-			}
-			if err := runtimehooksv1.SetMessage(response, ""); err != nil {
-				return errors.Wrap(err, "failed to construct default success response")
-			}
+			response.SetStatus(runtimehooksv1.ResponseStatusSuccess)
+			response.SetMessage("")
 			return nil
 		}
 		return errors.Wrap(err, "failed to call extension")
 	}
 	// If the received response is a failure then return an error.
-	failure, err := runtimehooksv1.IsFailure(response)
-	if err != nil {
-		return errors.Wrapf(err, "failed to process response")
-	}
-	if failure {
-		msg, err := runtimehooksv1.GetMessage(response)
-		if err != nil {
-			return errors.Wrap(err, "failed to process response")
-		}
-		return fmt.Errorf("extensionHandler %s failed with message %s", name, msg)
+	if response.GetStatus() == runtimehooksv1.ResponseStatusFailure {
+		return fmt.Errorf("extensionHandler %s failed with message %s", name, response.GetMessage())
 	}
 	// Received a successful response from the extension handler. The `response` object
 	// is populated with the result. Return no error.
@@ -284,7 +279,7 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 		return fmt.Errorf("opts.Catalog cannot be nil")
 	}
 
-	url, err := urlForExtension(opts.config, opts.gvh, opts.name)
+	extensionURL, err := urlForExtension(opts.config, opts.gvh, opts.name)
 	if err != nil {
 		return errors.Wrapf(err, "failed to compute URL of the extension handler %q", opts.name)
 	}
@@ -332,16 +327,16 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 
 	if opts.timeout != 0 {
 		// Make the call timebound if timeout is non-zero value.
-		values := url.Query()
+		values := extensionURL.Query()
 		values.Add("timeout", opts.timeout.String())
-		url.RawQuery = values.Encode()
+		extensionURL.RawQuery = values.Encode()
 
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.timeout)
 		defer cancel()
 	}
 
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), bytes.NewBuffer(postBody))
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, extensionURL.String(), bytes.NewBuffer(postBody))
 	if err != nil {
 		return errors.Wrap(err, "failed to create http request")
 	}
@@ -352,7 +347,7 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 		tlsConfig, err := transport.TLSConfigFor(&transport.Config{
 			TLS: transport.TLSConfig{
 				CAData:     opts.config.CABundle,
-				ServerName: url.Hostname(),
+				ServerName: extensionURL.Hostname(),
 			},
 		})
 		if err != nil {
@@ -372,7 +367,7 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 
 	if resp.StatusCode != http.StatusOK {
 		return errCallingExtensionHandler(
-			fmt.Errorf("non 200 response code, %q, not accepted", resp.StatusCode),
+			errors.Errorf("non 200 response code, %q, not accepted", resp.StatusCode),
 		)
 	}
 

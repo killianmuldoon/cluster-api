@@ -79,5 +79,4 @@ func init() {
 		Description: "Fake description",
 		Deprecated:  true,
 	})
-
 }

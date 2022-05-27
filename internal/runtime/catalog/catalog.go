@@ -356,7 +356,10 @@ type GroupHook struct {
 }
 
 func (gh GroupHook) String() string {
-	return fmt.Sprintf("Group=%s, Hook=%s", gh.Group, gh.Hook)
+	if len(gh.Group) == 0 {
+		return gh.Hook
+	}
+	return gh.Hook + "." + gh.Group
 }
 
 // GVHToPath calculates the path for a given GroupVersionHook.
