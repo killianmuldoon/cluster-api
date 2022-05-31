@@ -32,9 +32,8 @@ import (
 
 	runtimev1 "sigs.k8s.io/cluster-api/exp/runtime/api/v1alpha1"
 	runtimehooksv1 "sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1"
-	"sigs.k8s.io/cluster-api/internal/runtime/catalog"
 	runtimecatalog "sigs.k8s.io/cluster-api/internal/runtime/catalog"
-	"sigs.k8s.io/cluster-api/internal/runtime/registry"
+	runtimeregistry "sigs.k8s.io/cluster-api/internal/runtime/registry"
 	fakev1alpha1 "sigs.k8s.io/cluster-api/internal/runtime/test/v1alpha1"
 	fakev1alpha2 "sigs.k8s.io/cluster-api/internal/runtime/test/v1alpha2"
 )
@@ -303,7 +302,7 @@ func TestClient_CallExtension(t *testing.T) {
 			},
 		},
 	}
-	registryWithExtensionHandlerWithFailPolicy := registry.New()
+	registryWithExtensionHandlerWithFailPolicy := runtimeregistry.New()
 	err := registryWithExtensionHandlerWithFailPolicy.WarmUp(&runtimev1.ExtensionConfigList{
 		Items: []runtimev1.ExtensionConfig{
 			validExtensionHandlerWithFailPolicy,
@@ -332,7 +331,7 @@ func TestClient_CallExtension(t *testing.T) {
 		},
 	}
 
-	registryWithExtensionHandlerWithIgnorePolicy := registry.New()
+	registryWithExtensionHandlerWithIgnorePolicy := runtimeregistry.New()
 	err = registryWithExtensionHandlerWithIgnorePolicy.WarmUp(&runtimev1.ExtensionConfigList{
 		Items: []runtimev1.ExtensionConfig{
 			validExtensionHandlerWithIgnorePolicy,
@@ -361,21 +360,21 @@ func TestClient_CallExtension(t *testing.T) {
 	}
 
 	type args struct {
-		hook     catalog.Hook
+		hook     runtimecatalog.Hook
 		name     string
 		request  runtime.Object
 		response runtimehooksv1.Response
 	}
 	tests := []struct {
 		name       string
-		registry   registry.ExtensionRegistry
+		registry   runtimeregistry.ExtensionRegistry
 		args       args
 		testServer testServerConfig
 		wantErr    bool
 	}{
 		{
 			name:     "should fail if ExtensionHandler information is not registered",
-			registry: registry.New(),
+			registry: runtimeregistry.New(),
 			testServer: testServerConfig{
 				start:              true,
 				response:           &fakev1alpha1.FakeResponse{},
@@ -536,7 +535,7 @@ func TestClient_CallExtension(t *testing.T) {
 				defer srv.Close()
 			}
 
-			cat := catalog.New()
+			cat := runtimecatalog.New()
 			_ = fakev1alpha1.AddToCatalog(cat)
 			_ = fakev1alpha2.AddToCatalog(cat)
 

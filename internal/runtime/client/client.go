@@ -81,10 +81,10 @@ type Client interface {
 	Unregister(extensionConfig *runtimev1.ExtensionConfig) error
 
 	// CallAllExtensions calls all the ExtensionHandler registered for the hook.
-	CallAllExtensions(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.Response) error
+	CallAllExtensions(ctx context.Context, hook runtimecatalog.Hook, request runtime.Object, response runtimehooksv1.Response) error
 
 	// CallExtension calls only the ExtensionHandler with the given name.
-	CallExtension(ctx context.Context, hook catalog.Hook, name string, request runtime.Object, response runtimehooksv1.Response) error
+	CallExtension(ctx context.Context, hook runtimecatalog.Hook, name string, request runtime.Object, response runtimehooksv1.Response) error
 }
 
 var _ Client = &client{}
@@ -167,7 +167,7 @@ func (c *client) Unregister(extensionConfig *runtimev1.ExtensionConfig) error {
 // The ExtensionHandler are called sequentially. The function exits immediately after any of the ExtensionHandlers return an error.
 // See CallExtension for more details on when an ExtensionHandler returns an error.
 // The aggregate result of the ExtensionHandlers is updated into the response object passed to the function.
-func (c *client) CallAllExtensions(ctx context.Context, hook catalog.Hook, request runtime.Object, response runtimehooksv1.Response) error {
+func (c *client) CallAllExtensions(ctx context.Context, hook runtimecatalog.Hook, request runtime.Object, response runtimehooksv1.Response) error {
 	gvh, err := c.catalog.GroupVersionHook(hook)
 	if err != nil {
 		return errors.Wrap(err, "failed to compute GroupVersionHook")
@@ -210,7 +210,7 @@ func aggregateResponses(responses []runtimehooksv1.Response) error {
 // Nb. FailurePolicy does not affect the following kinds of errors:
 // - Internal errors. Examples: hooks is incompatible with ExtensionHandler, ExtensionHandler information is missing.
 // - Error when ExtensionHandler returns a response with `Status` set to `Failure`.
-func (c *client) CallExtension(ctx context.Context, hook catalog.Hook, name string, request runtime.Object, response runtimehooksv1.Response) error {
+func (c *client) CallExtension(ctx context.Context, hook runtimecatalog.Hook, name string, request runtime.Object, response runtimehooksv1.Response) error {
 	gvh, err := c.catalog.GroupVersionHook(hook)
 	if err != nil {
 		return errors.Wrap(err, "failed to compute GroupVersionHook")

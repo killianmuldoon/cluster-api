@@ -26,7 +26,7 @@ import (
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	runtimehooksv1 "sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1"
-	"sigs.k8s.io/cluster-api/internal/runtime/catalog"
+	runtimecatalog "sigs.k8s.io/cluster-api/internal/runtime/catalog"
 )
 
 var (
@@ -36,7 +36,7 @@ var (
 
 	// catalogBuilder is used to add rpc services and their request and response types
 	// to a Catalog.
-	catalogBuilder = &catalog.Builder{GroupVersion: GroupVersion}
+	catalogBuilder = &runtimecatalog.Builder{GroupVersion: GroupVersion}
 
 	// AddToCatalog adds rpc services defined in this package and their request and
 	// response types to a catalog.
@@ -71,7 +71,7 @@ func (in *FakeResponse) DeepCopyObject() runtime.Object {
 }
 
 func init() {
-	catalogBuilder.RegisterHook(FakeHook, &catalog.HookMeta{
+	catalogBuilder.RegisterHook(FakeHook, &runtimecatalog.HookMeta{
 		Tags:        []string{"fake-tag"},
 		Summary:     "Fake summary",
 		Description: "Fake description",
