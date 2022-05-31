@@ -30,10 +30,10 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.CommonResponse":              schema_runtime_hooks_api_v1alpha1_CommonResponse(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.DiscoveryRequest":            schema_runtime_hooks_api_v1alpha1_DiscoveryRequest(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.DiscoveryResponse":           schema_runtime_hooks_api_v1alpha1_DiscoveryResponse(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.ExtensionHandler":            schema_runtime_hooks_api_v1alpha1_ExtensionHandler(ref),
-		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.ExtensionHandlerResponse":    schema_runtime_hooks_api_v1alpha1_ExtensionHandlerResponse(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.GeneratePatchesRequest":      schema_runtime_hooks_api_v1alpha1_GeneratePatchesRequest(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.GeneratePatchesRequestItem":  schema_runtime_hooks_api_v1alpha1_GeneratePatchesRequestItem(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.GeneratePatchesResponse":     schema_runtime_hooks_api_v1alpha1_GeneratePatchesResponse(ref),
@@ -44,6 +44,35 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.ValidateTopologyRequestItem": schema_runtime_hooks_api_v1alpha1_ValidateTopologyRequestItem(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.ValidateTopologyResponse":    schema_runtime_hooks_api_v1alpha1_ValidateTopologyResponse(ref),
 		"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.Variable":                    schema_runtime_hooks_api_v1alpha1_Variable(ref),
+	}
+}
+
+func schema_runtime_hooks_api_v1alpha1_CommonResponse(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CommonResponse is the data structure common to all response types.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Possible enum values:\n - `\"Failure\"` represents a failure response.\n - `\"Success\"` represents the success response.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+							Enum:        []interface{}{"Failure", "Success"}},
+					},
+				},
+				Required: []string{"message", "status"},
+			},
+		},
 	}
 }
 
@@ -95,21 +124,20 @@ func schema_runtime_hooks_api_v1alpha1_DiscoveryResponse(ref common.ReferenceCal
 							Format:      "",
 						},
 					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Status of the call. One of \"Success\" or \"Failure\".\n\nPossible enum values:\n - `\"Failure\"` represents a failure response.\n - `\"Success\"` represents the success response.",
+							Description: "Possible enum values:\n - `\"Failure\"` represents a failure response.\n - `\"Success\"` represents the success response.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 							Enum:        []interface{}{"Failure", "Success"}},
-					},
-					"message": {
-						SchemaProps: spec.SchemaProps{
-							Description: "A human-readable description of the status of the call.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
 					},
 					"handlers": {
 						VendorExtensible: spec.VendorExtensible{
@@ -134,7 +162,7 @@ func schema_runtime_hooks_api_v1alpha1_DiscoveryResponse(ref common.ReferenceCal
 						},
 					},
 				},
-				Required: []string{"status", "message", "handlers"},
+				Required: []string{"message", "status", "handlers"},
 			},
 		},
 		Dependencies: []string{
@@ -184,34 +212,6 @@ func schema_runtime_hooks_api_v1alpha1_ExtensionHandler(ref common.ReferenceCall
 		},
 		Dependencies: []string{
 			"sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1.GroupVersionHook"},
-	}
-}
-
-func schema_runtime_hooks_api_v1alpha1_ExtensionHandlerResponse(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "ExtensionHandlerResponse represents ths response from a single RuntimeExtensionHandler.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"Name": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"Response": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/runtime.Object"),
-						},
-					},
-				},
-				Required: []string{"Name", "Response"},
-			},
-		},
-		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/runtime.Object"},
 	}
 }
 

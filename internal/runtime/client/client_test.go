@@ -393,7 +393,7 @@ func TestClient_CallExtension(t *testing.T) {
 			Kind:       "FakeResponse",
 			APIVersion: fakev1alpha1.GroupVersion.String(),
 		},
-		ResponseMeta: runtimehooksv1.ResponseMeta{
+		CommonResponse: runtimehooksv1.CommonResponse{
 			Status: runtimehooksv1.ResponseStatusSuccess,
 		},
 	}
@@ -403,7 +403,7 @@ func TestClient_CallExtension(t *testing.T) {
 			Kind:       "FakeResponse",
 			APIVersion: fakev1alpha1.GroupVersion.String(),
 		},
-		ResponseMeta: runtimehooksv1.ResponseMeta{
+		CommonResponse: runtimehooksv1.CommonResponse{
 			Status: runtimehooksv1.ResponseStatusFailure,
 		},
 	}

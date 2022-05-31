@@ -65,7 +65,7 @@ type FakeRequest struct {
 // +kubebuilder:object:root=true
 type FakeResponse struct {
 	metav1.TypeMeta `json:",inline"`
-	runtimehooksv1.ResponseMeta
+	runtimehooksv1.CommonResponse
 
 	Second string
 	First  int
