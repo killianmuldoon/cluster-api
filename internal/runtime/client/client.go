@@ -106,7 +106,7 @@ func (c *client) IsReady() bool {
 }
 
 func (c *client) Discover(ctx context.Context, extensionConfig *runtimev1.ExtensionConfig) (*runtimev1.ExtensionConfig, error) {
-	gvh, err := c.catalog.GroupVersionHook(runtimehooksv1.Discovery)
+	hookGVH, err := c.catalog.GroupVersionHook(runtimehooksv1.Discovery)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to compute GVH of hook")
 	}
@@ -114,10 +114,11 @@ func (c *client) Discover(ctx context.Context, extensionConfig *runtimev1.Extens
 	request := &runtimehooksv1.DiscoveryRequest{}
 	response := &runtimehooksv1.DiscoveryResponse{}
 	opts := &httpCallOptions{
-		catalog: c.catalog,
-		config:  extensionConfig.Spec.ClientConfig,
-		gvh:     gvh,
-		timeout: defaultDiscoveryTimeout,
+		catalog:         c.catalog,
+		config:          extensionConfig.Spec.ClientConfig,
+		registrationGVH: hookGVH,
+		hookGVH:         hookGVH,
+		timeout:         defaultDiscoveryTimeout,
 	}
 	if err := httpCall(ctx, request, response, opts); err != nil {
 		return nil, errors.Wrap(err, "failed to call the Discovery endpoint")
@@ -211,7 +212,7 @@ func aggregateResponses(responses []runtimehooksv1.ResponseObject) error {
 // - Internal errors. Examples: hooks is incompatible with ExtensionHandler, ExtensionHandler information is missing.
 // - Error when ExtensionHandler returns a response with `Status` set to `Failure`.
 func (c *client) CallExtension(ctx context.Context, hook runtimecatalog.Hook, name string, request runtime.Object, response runtimehooksv1.ResponseObject) error {
-	gvh, err := c.catalog.GroupVersionHook(hook)
+	hookGVH, err := c.catalog.GroupVersionHook(hook)
 	if err != nil {
 		return errors.Wrap(err, "failed to compute GroupVersionHook")
 	}
@@ -219,19 +220,20 @@ func (c *client) CallExtension(ctx context.Context, hook runtimecatalog.Hook, na
 	if err != nil {
 		return errors.Wrapf(err, "failed to retrieve ExtensionHandler with name %q", name)
 	}
-	if gvh.GroupHook() != registration.GroupVersionHook.GroupHook() {
-		return fmt.Errorf("ExtensionHandler %q does not match group %s, hook %s", name, gvh.Group, gvh.Hook)
+	if hookGVH.GroupHook() != registration.GroupVersionHook.GroupHook() {
+		return fmt.Errorf("ExtensionHandler %q does not match group %s, hook %s", name, hookGVH.Group, hookGVH.Hook)
 	}
 	var timeoutDuration time.Duration
 	if registration.TimeoutSeconds != nil {
 		timeoutDuration = time.Duration(*registration.TimeoutSeconds) * time.Second
 	}
 	opts := &httpCallOptions{
-		catalog: c.catalog,
-		config:  registration.ClientConfig,
-		gvh:     registration.GroupVersionHook,
-		name:    strings.TrimSuffix(registration.Name, "."+registration.ExtensionConfigName),
-		timeout: timeoutDuration,
+		catalog:         c.catalog,
+		config:          registration.ClientConfig,
+		registrationGVH: registration.GroupVersionHook,
+		hookGVH:         hookGVH,
+		name:            strings.TrimSuffix(registration.Name, "."+registration.ExtensionConfigName),
+		timeout:         timeoutDuration,
 	}
 	err = httpCall(ctx, request, response, opts)
 	if err != nil {
@@ -256,11 +258,12 @@ func (c *client) CallExtension(ctx context.Context, hook runtimecatalog.Hook, na
 }
 
 type httpCallOptions struct {
-	catalog *runtimecatalog.Catalog
-	config  runtimev1.ClientConfig
-	gvh     runtimecatalog.GroupVersionHook
-	name    string
-	timeout time.Duration
+	catalog         *runtimecatalog.Catalog
+	config          runtimev1.ClientConfig
+	registrationGVH runtimecatalog.GroupVersionHook
+	hookGVH         runtimecatalog.GroupVersionHook
+	name            string
+	timeout         time.Duration
 }
 
 func httpCall(ctx context.Context, request, response runtime.Object, opts *httpCallOptions) error {
@@ -271,11 +274,12 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 		return errors.New("opts.Catalog cannot be nil")
 	}
 
-	extensionURL, err := urlForExtension(opts.config, opts.gvh, opts.name)
+	extensionURL, err := urlForExtension(opts.config, opts.registrationGVH, opts.name)
 	if err != nil {
 		return errors.Wrapf(err, "failed to compute URL of the extension handler %q", opts.name)
 	}
-	requireConversion := opts.gvh.Version != request.GetObjectKind().GroupVersionKind().Version
+
+	requireConversion := opts.registrationGVH.Version != opts.hookGVH.Version
 
 	requestLocal := request
 	responseLocal := response
@@ -286,9 +290,9 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 		var err error
 
 		// Create a new hook request object that is compatible with the version of ExtensionHandler.
-		requestLocal, err = opts.catalog.NewRequest(opts.gvh)
+		requestLocal, err = opts.catalog.NewRequest(opts.registrationGVH)
 		if err != nil {
-			return errors.Wrapf(err, "failed to create new request for hook %s", opts.gvh)
+			return errors.Wrapf(err, "failed to create new request for hook %s", opts.registrationGVH)
 		}
 
 		if err := opts.catalog.Convert(request, requestLocal, ctx); err != nil {
@@ -296,19 +300,26 @@ func httpCall(ctx context.Context, request, response runtime.Object, opts *httpC
 		}
 
 		// Create a new hook response object that is compatible with the version of the ExtensionHandler.
-		responseLocal, err = opts.catalog.NewResponse(opts.gvh)
+		responseLocal, err = opts.catalog.NewResponse(opts.registrationGVH)
 		if err != nil {
-			return errors.Wrapf(err, "failed to create new response for hook %s", opts.gvh)
+			return errors.Wrapf(err, "failed to create new response for hook %s", opts.registrationGVH)
 		}
 	}
 
+	// Ensure the correct GroupVersionKind is set to the request.
+	requestGVH, err := opts.catalog.Request(opts.registrationGVH)
+	if err != nil {
+		return errors.Wrap(err, "failed to create request object")
+	}
+	request.GetObjectKind().SetGroupVersionKind(requestGVH)
+
 	// Make sure the request is compatible with the version of the hook  expected by the ExtensionHandler.
-	if err := opts.catalog.ValidateRequest(opts.gvh, requestLocal); err != nil {
-		return errors.Wrapf(err, "request object is invalid for hook %s", opts.gvh)
+	if err := opts.catalog.ValidateRequest(opts.registrationGVH, requestLocal); err != nil {
+		return errors.Wrapf(err, "request object is invalid for hook %s", opts.registrationGVH)
 	}
 	// Make sure the response is compatible with the version of the hook  expected by the ExtensionHandler.
-	if err := opts.catalog.ValidateResponse(opts.gvh, responseLocal); err != nil {
-		return errors.Wrapf(err, "response object is invalid for hook %s", opts.gvh)
+	if err := opts.catalog.ValidateResponse(opts.registrationGVH, responseLocal); err != nil {
+		return errors.Wrapf(err, "response object is invalid for hook %s", opts.registrationGVH)
 	}
 
 	postBody, err := json.Marshal(requestLocal)

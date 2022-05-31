@@ -49,14 +49,14 @@ func TestClient_httpCall(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name:     "should error if request, response and options are nil",
+			name:     "error if request, response and options are nil",
 			request:  nil,
 			response: nil,
 			opts:     nil,
 			wantErr:  true,
 		},
 		{
-			name:     "should error if catalog is not set",
+			name:     "error if catalog is not set",
 			request:  &fakev1alpha1.FakeRequest{},
 			response: &fakev1alpha1.FakeResponse{},
 			opts: &httpCallOptions{
@@ -65,7 +65,7 @@ func TestClient_httpCall(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:     "should error if hooks is not registered with catalog",
+			name:     "error if hooks is not registered with catalog",
 			request:  &fakev1alpha1.FakeRequest{},
 			response: &fakev1alpha1.FakeResponse{},
 			opts: &httpCallOptions{
@@ -74,7 +74,7 @@ func TestClient_httpCall(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "should succeed for valid request and response objects",
+			name: "succeed for valid request and response objects",
 			request: &fakev1alpha1.FakeRequest{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "FakeRequest",
@@ -91,14 +91,15 @@ func TestClient_httpCall(t *testing.T) {
 				g.Expect(err).To(Succeed())
 
 				return &httpCallOptions{
-					catalog: c,
-					gvh:     gvh,
+					catalog:         c,
+					registrationGVH: gvh,
+					hookGVH:         gvh,
 				}
 			}(),
 			wantErr: false,
 		},
 		{
-			name: "should success if response and response are valid objects - with conversion",
+			name: "success if request and response are valid objects - with conversion",
 			request: &fakev1alpha2.FakeRequest{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "FakeRequest",
@@ -113,12 +114,60 @@ func TestClient_httpCall(t *testing.T) {
 				g.Expect(fakev1alpha2.AddToCatalog(c)).To(Succeed())
 
 				// get same gvh for hook by using the FakeHook and catalog
-				gvh, err := c.GroupVersionHook(fakev1alpha1.FakeHook)
+				registrationGVH, err := c.GroupVersionHook(fakev1alpha1.FakeHook)
+				g.Expect(err).To(Succeed())
+				hookGVH, err := c.GroupVersionHook(fakev1alpha2.FakeHook)
 				g.Expect(err).To(Succeed())
 
 				return &httpCallOptions{
-					catalog: c,
-					gvh:     gvh,
+					catalog:         c,
+					registrationGVH: registrationGVH,
+					hookGVH:         hookGVH,
+				}
+			}(),
+			wantErr: false,
+		},
+		{
+			name:     "succeed if request doesn't define TypeMeta",
+			request:  &fakev1alpha2.FakeRequest{},
+			response: &fakev1alpha2.FakeResponse{},
+			opts: func() *httpCallOptions {
+				c := runtimecatalog.New()
+				// register fakev1alpha1 and fakev1alpha2 to enable conversion
+				g.Expect(fakev1alpha2.AddToCatalog(c)).To(Succeed())
+
+				// get same gvh for hook by using the FakeHook and catalog
+				gvh, err := c.GroupVersionHook(fakev1alpha2.FakeHook)
+				g.Expect(err).To(Succeed())
+
+				return &httpCallOptions{
+					catalog:         c,
+					registrationGVH: gvh,
+					hookGVH:         gvh,
+				}
+			}(),
+			wantErr: false,
+		},
+		{
+			name:     "success if request doesn't define TypeMeta - with conversion",
+			request:  &fakev1alpha2.FakeRequest{},
+			response: &fakev1alpha2.FakeResponse{},
+			opts: func() *httpCallOptions {
+				c := runtimecatalog.New()
+				// register fakev1alpha1 and fakev1alpha2 to enable conversion
+				g.Expect(fakev1alpha1.AddToCatalog(c)).To(Succeed())
+				g.Expect(fakev1alpha2.AddToCatalog(c)).To(Succeed())
+
+				// get same gvh for hook by using the FakeHook and catalog
+				registrationGVH, err := c.GroupVersionHook(fakev1alpha1.FakeHook)
+				g.Expect(err).To(Succeed())
+				hookGVH, err := c.GroupVersionHook(fakev1alpha2.FakeHook)
+				g.Expect(err).To(Succeed())
+
+				return &httpCallOptions{
+					catalog:         c,
+					hookGVH:         hookGVH,
+					registrationGVH: registrationGVH,
 				}
 			}(),
 			wantErr: false,
