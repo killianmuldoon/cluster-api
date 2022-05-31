@@ -257,6 +257,8 @@ generate-go-deepcopy-core: $(CONTROLLER_GEN) ## Generate deepcopy go code for co
 		paths=./$(EXP_DIR)/addons/api/... \
 		paths=./$(EXP_DIR)/runtime/api/... \
 		paths=./$(EXP_DIR)/runtime/hooks/api/... \
+		paths=./internal/runtime/test/v1alpha1 \
+        paths=./internal/runtime/test/v1alpha2 \
 		paths=./cmd/clusterctl/... \
 		paths=./internal/test/builder/...
 

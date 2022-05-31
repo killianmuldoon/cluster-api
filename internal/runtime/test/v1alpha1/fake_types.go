@@ -21,7 +21,6 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	clusterv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
@@ -51,6 +50,8 @@ var (
 
 func FakeHook(*FakeRequest, *FakeResponse) {}
 
+// FakeRequest is a response for testing
+// +kubebuilder:object:root=true
 type FakeRequest struct {
 	metav1.TypeMeta `json:",inline"`
 
@@ -60,10 +61,8 @@ type FakeRequest struct {
 	First  int
 }
 
-func (in *FakeRequest) DeepCopyObject() runtime.Object {
-	panic("implement me!")
-}
-
+// FakeResponse is a response for testing
+// +kubebuilder:object:root=true
 type FakeResponse struct {
 	metav1.TypeMeta `json:",inline"`
 	runtimehooksv1.CommonResponse
@@ -72,12 +71,10 @@ type FakeResponse struct {
 	First  int
 }
 
-func (in *FakeResponse) DeepCopyObject() runtime.Object {
-	panic("implement me!")
-}
-
 func SecondFakeHook(*SecondFakeRequest, *SecondFakeResponse) {}
 
+// SecondFakeRequest is a response for testing
+// +kubebuilder:object:root=true
 type SecondFakeRequest struct {
 	metav1.TypeMeta `json:",inline"`
 
@@ -87,10 +84,8 @@ type SecondFakeRequest struct {
 	First  int
 }
 
-func (in *SecondFakeRequest) DeepCopyObject() runtime.Object {
-	panic("implement me!")
-}
-
+// SecondFakeResponse is a response for testing
+// +kubebuilder:object:root=true
 type SecondFakeResponse struct {
 	metav1.TypeMeta `json:",inline"`
 
@@ -99,10 +94,6 @@ type SecondFakeResponse struct {
 
 	Second string
 	First  int
-}
-
-func (in *SecondFakeResponse) DeepCopyObject() runtime.Object {
-	panic("implement me!")
 }
 
 func init() {
