@@ -18,7 +18,7 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/pkg/errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -136,7 +136,7 @@ func TestExtensionReconciler_Reconcile(t *testing.T) {
 				return err
 			}
 			if *conf.Spec.ClientConfig.URL != updatedServer.URL {
-				return fmt.Errorf("URL not set on updated object: got: %s, want: %s", *conf.Spec.ClientConfig.URL, updatedServer.URL)
+				return errors.Errorf("URL not set on updated object: got: %s, want: %s", *conf.Spec.ClientConfig.URL, updatedServer.URL)
 			}
 			return nil
 		}, 30*time.Second, 100*time.Millisecond).Should(BeNil())

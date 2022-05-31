@@ -119,7 +119,7 @@ func Test_warmupRunnable_Start(t *testing.T) {
 		}
 
 		if err := r.Start(ctx); err == nil {
-			t.Error(fmt.Errorf("expected error on start up"))
+			t.Error(errors.New("expected error on start up"))
 		}
 		list := &runtimev1.ExtensionConfigList{}
 		g.Expect(env.GetAPIReader().List(ctx, list)).To(Succeed())

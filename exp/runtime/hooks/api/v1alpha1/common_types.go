@@ -20,9 +20,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// Response can set and get fields common to all Response types.
+// ResponseObject is a runtime object extended with methods to handle response-specific fields.
 // +kubebuilder:object:generate=false
-type Response interface {
+type ResponseObject interface {
 	runtime.Object
 	GetMessage() string
 	GetStatus() ResponseStatus
@@ -30,34 +30,34 @@ type Response interface {
 	SetStatus(status ResponseStatus)
 }
 
-// CommonResponse is the data structure common to all Response types.
-type CommonResponse struct {
+// ResponseMeta is the data structure common to all *Response types.
+type ResponseMeta struct {
 	Message string         `json:"message"`
 	Status  ResponseStatus `json:"status"`
 }
 
-// SetMessage sets the message field for the Response.
-func (r *CommonResponse) SetMessage(message string) {
+// SetMessage sets the message field for the ResponseMeta.
+func (r *ResponseMeta) SetMessage(message string) {
 	r.Message = message
 }
 
-// SetStatus sets the status field for the Response.
-func (r *CommonResponse) SetStatus(status ResponseStatus) {
+// SetStatus sets the status field for the ResponseMeta.
+func (r *ResponseMeta) SetStatus(status ResponseStatus) {
 	r.Status = status
 }
 
-// GetMessage returns the Message field for the Response.
-func (r *CommonResponse) GetMessage() string {
+// GetMessage returns the Message field for the ResponseMeta.
+func (r *ResponseMeta) GetMessage() string {
 	return r.Message
 }
 
-// GetStatus returns the Status field for the Response.
-func (r *CommonResponse) GetStatus() ResponseStatus {
+// GetStatus returns the Status field for the ResponseMeta.
+func (r *ResponseMeta) GetStatus() ResponseStatus {
 	return r.Status
 }
 
 // ResponseStatus represents the status of the hook response.
-// +enum
+// +enum// -
 type ResponseStatus string
 
 const (
