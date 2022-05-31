@@ -71,7 +71,7 @@ type GroupVersionHook struct {
 // FailurePolicy helps with extensions not working consistently, e.g. due to an intermittent network issue.
 // The following type of errors are always considered blocking Failures:
 // - Misconfigurations (e.g. incompatible types)
-// - Extension explicitly reports a Status Failure
+// - Extension explicitly reports a Status Failure.
 type FailurePolicy string
 
 const (

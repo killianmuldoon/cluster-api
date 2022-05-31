@@ -18,13 +18,13 @@ package controllers
 
 import (
 	"encoding/json"
-	"github.com/pkg/errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilfeature "k8s.io/component-base/featuregate/testing"
