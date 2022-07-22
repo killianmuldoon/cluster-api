@@ -447,6 +447,7 @@ func (r *KubeadmConfigReconciler) handleClusterNotInitialized(ctx context.Contex
 		conditions.MarkFalse(scope.Config, bootstrapv1.CertificatesAvailableCondition, bootstrapv1.CertificatesGenerationFailedReason, clusterv1.ConditionSeverityWarning, err.Error())
 		return ctrl.Result{}, err
 	}
+
 	conditions.MarkTrue(scope.Config, bootstrapv1.CertificatesAvailableCondition)
 
 	verbosityFlag := ""
@@ -626,6 +627,7 @@ func (r *KubeadmConfigReconciler) joinControlplane(ctx context.Context, scope *S
 		conditions.MarkFalse(scope.Config, bootstrapv1.CertificatesAvailableCondition, bootstrapv1.CertificatesCorruptedReason, clusterv1.ConditionSeverityError, err.Error())
 		return ctrl.Result{}, err
 	}
+
 	conditions.MarkTrue(scope.Config, bootstrapv1.CertificatesAvailableCondition)
 
 	// Ensure that joinConfiguration.Discovery is properly set for joining node on the current cluster.

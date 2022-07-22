@@ -154,6 +154,7 @@ func (src *Machine) ConvertTo(dstRaw conversion.Hub) error {
 	}
 
 	dst.Spec.NodeDeletionTimeout = restored.Spec.NodeDeletionTimeout
+	dst.Status.CertificatesExpiryDate = restored.Status.CertificatesExpiryDate
 	return nil
 }
 
@@ -327,4 +328,9 @@ func Convert_v1beta1_ControlPlaneClass_To_v1alpha4_ControlPlaneClass(in *cluster
 func Convert_v1beta1_ControlPlaneTopology_To_v1alpha4_ControlPlaneTopology(in *clusterv1.ControlPlaneTopology, out *ControlPlaneTopology, s apiconversion.Scope) error {
 	// controlPlaneTopology.nodeDrainTimeout has been added with v1beta1.
 	return autoConvert_v1beta1_ControlPlaneTopology_To_v1alpha4_ControlPlaneTopology(in, out, s)
+}
+
+func Convert_v1beta1_MachineStatus_To_v1alpha4_MachineStatus(in *clusterv1.MachineStatus, out *MachineStatus, s apiconversion.Scope) error {
+	// MachineStatus.CertificatesExpiryDate has been added in v1beta1.
+	return autoConvert_v1beta1_MachineStatus_To_v1alpha4_MachineStatus(in, out, s)
 }

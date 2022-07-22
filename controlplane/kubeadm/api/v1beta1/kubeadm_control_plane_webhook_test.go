@@ -103,6 +103,10 @@ func TestKubeadmControlPlaneValidateCreate(t *testing.T) {
 	invalidMaxSurge := valid.DeepCopy()
 	invalidMaxSurge.Spec.RolloutStrategy.RollingUpdate.MaxSurge.IntVal = int32(3)
 
+	stringMaxSurge := valid.DeepCopy()
+	val := intstr.FromString("1")
+	stringMaxSurge.Spec.RolloutStrategy.RollingUpdate.MaxSurge = &val
+
 	invalidNamespace := valid.DeepCopy()
 	invalidNamespace.Spec.MachineTemplate.InfrastructureRef.Namespace = "bar"
 
@@ -135,6 +139,11 @@ func TestKubeadmControlPlaneValidateCreate(t *testing.T) {
 
 	invalidCoreDNSVersion := valid.DeepCopy()
 	invalidCoreDNSVersion.Spec.KubeadmConfigSpec.ClusterConfiguration.DNS.ImageTag = "v1.7" // not a valid semantic version
+
+	invalidRolloutBeforeCertificateExpiryDays := valid.DeepCopy()
+	invalidRolloutBeforeCertificateExpiryDays.Spec.RolloutBefore = &RolloutBefore{
+		CertificatesExpiryDays: pointer.Int32(5), // less than minimum
+	}
 
 	invalidIgnitionConfiguration := valid.DeepCopy()
 	invalidIgnitionConfiguration.Spec.KubeadmConfigSpec.Ignition = &bootstrapv1.IgnitionSpec{}
@@ -204,6 +213,17 @@ func TestKubeadmControlPlaneValidateCreate(t *testing.T) {
 			expectErr: true,
 			kcp:       invalidMaxSurge,
 		},
+		{
+			name:      "should succeed when maxSurge is a string",
+			expectErr: false,
+			kcp:       stringMaxSurge,
+		},
+		{
+			name:      "should return error when given an invalid rolloutBefore.certificatesExpiryDays value",
+			expectErr: true,
+			kcp:       invalidRolloutBeforeCertificateExpiryDays,
+		},
+
 		{
 			name:                  "should return error when Ignition configuration is invalid",
 			enableIgnitionFeature: true,
@@ -382,6 +402,9 @@ func TestKubeadmControlPlaneValidateUpdate(t *testing.T) {
 	validUpdate.Spec.Replicas = pointer.Int32Ptr(5)
 	now := metav1.NewTime(time.Now())
 	validUpdate.Spec.RolloutAfter = &now
+	validUpdate.Spec.RolloutBefore = &RolloutBefore{
+		CertificatesExpiryDays: pointer.Int32(14),
+	}
 	validUpdate.Spec.KubeadmConfigSpec.Format = bootstrapv1.CloudConfig
 
 	scaleToZero := before.DeepCopy()
@@ -598,6 +621,11 @@ func TestKubeadmControlPlaneValidateUpdate(t *testing.T) {
 
 	disableNTPServers := before.DeepCopy()
 	disableNTPServers.Spec.KubeadmConfigSpec.NTP.Enabled = pointer.BoolPtr(false)
+
+	invalidRolloutBeforeCertificateExpiryDays := before.DeepCopy()
+	invalidRolloutBeforeCertificateExpiryDays.Spec.RolloutBefore = &RolloutBefore{
+		CertificatesExpiryDays: pointer.Int32(5), // less than minimum
+	}
 
 	invalidIgnitionConfiguration := before.DeepCopy()
 	invalidIgnitionConfiguration.Spec.KubeadmConfigSpec.Ignition = &bootstrapv1.IgnitionSpec{}
@@ -944,6 +972,12 @@ func TestKubeadmControlPlaneValidateUpdate(t *testing.T) {
 			expectErr: false,
 			before:    before,
 			kcp:       updateJoinConfigurationPatches,
+		},
+		{
+			name:      "should return error when rolloutBefore.certificatesExpiryDays is invalid",
+			expectErr: true,
+			before:    before,
+			kcp:       invalidRolloutBeforeCertificateExpiryDays,
 		},
 		{
 			name:                  "should return error when Ignition configuration is invalid",
