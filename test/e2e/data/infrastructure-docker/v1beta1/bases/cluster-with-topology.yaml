@@ -24,7 +24,6 @@ spec:
       machineDeployments:
       - class: "default-worker"
         name: "md-0"
-        nodeDrainTimeout: "30s"
         nodeDeletionTimeout: "30s"
         replicas: ${WORKER_MACHINE_COUNT}
         failureDomain: fd4
