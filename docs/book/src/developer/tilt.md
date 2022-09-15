@@ -8,7 +8,7 @@ workflow that offers easy deployments and rapid iterative builds.
 ## Prerequisites
 
 1. [Docker](https://docs.docker.com/install/): v19.03 or newer
-1. [kind](https://kind.sigs.k8s.io): v0.9 or newer
+1. [kind](https://kind.sigs.k8s.io): v0.15 or newer
 1. [Tilt](https://docs.tilt.dev/install.html): v0.22.2 or newer
 1. [kustomize](https://github.com/kubernetes-sigs/kustomize): provided via `make kustomize`
 1. [envsubst](https://github.com/drone/envsubst): provided via `make envsubst`
@@ -173,8 +173,19 @@ kustomize_substitutions:
 {{#/tabs }}
 
 **deploy_observability** ([string], default=[]): If set, installs on the dev cluster one of more observability
-tools. Supported values are `grafana`, `loki`, `visualizer`, `promtail` and/or `prometheus` (Note: the UI for `grafana`, `prometheus`, and `visualizer` will be accessible via a link in the tilt console).
+tools. 
 Important! This feature requires the `helm` command to be available in the user's path.
+
+Supported values are:
+
+  * `grafana`*: To create dashboards and query `loki` as well as `prometheus`.
+  * `kube-state-metrics`: For exposing metrics for kubernetes and CAPI resources to `prometheus`.
+  * `loki`: To receive and store logs.
+  * `prometheus`*: For collecting metrics from Kubernetes.
+  * `promtail`: For providing pod logs to `loki`.
+  * `visualizer`*: Visualize Cluster API resources for each cluster, provide quick access to the specs and status of any resource.
+
+\*: Note: the UI will be accessible via a link in the tilt console
 
 **debug** (Map{string: Map} default{}): A map of named configurations for the provider. The key is the name of the provider.
 
@@ -262,12 +273,12 @@ With this config, the respective managers will be invoked with:
 manager --logging-format=json
 ```
 
-### Run Tilt!
+### Create a kind cluster and run Tilt!
 
-To launch your development environment, run
+To create a pre-configured kind cluster (if you have not already done so) and launch your development environment, run
 
 ```bash
-tilt up
+make tilt-up
 ```
 
 This will open the command-line HUD as well as a web browser interface. You can monitor Tilt's status in either
@@ -292,10 +303,26 @@ Custom values for variable substitutions can be set using `kustomize_substitutio
 ```yaml
 kustomize_substitutions:
   NAMESPACE: default
-  KUBERNETES_VERSION: v1.24.0
+  KUBERNETES_VERSION: v1.25.0
   CONTROL_PLANE_MACHINE_COUNT: 1
   WORKER_MACHINE_COUNT: 3
 ```
+
+### Cleaning up your kind cluster and development environment
+
+After stopping Tilt, you can clean up your kind cluster and development environment by running
+
+```bash
+make clean-kind
+```
+
+To remove all generated files, run
+
+```bash
+make clean
+```
+
+Note that you must run `make clean` or `make clean-charts` to fetch new versions of charts deployed using `deploy_observability` in `tilt-settings.yaml`.
 
 <h1>Use of clusterctl</h1>
 
@@ -320,10 +347,10 @@ A provider must supply a `tilt-provider.yaml` file describing how to build it. H
 
 ```yaml
 name: aws
-label: CAPA
 config:
   image: "gcr.io/k8s-staging-cluster-api-aws/cluster-api-aws-controller",
   live_reload_deps: ["main.go", "go.mod", "go.sum", "api", "cmd", "controllers", "pkg"]
+  label: CAPA
 ```
 
 

@@ -23,7 +23,7 @@ SHELL:=/usr/bin/env bash
 #
 # Go.
 #
-GO_VERSION ?= 1.18.3
+GO_VERSION ?= 1.19.0
 GO_CONTAINER_IMAGE ?= docker.io/library/golang:$(GO_VERSION)
 
 # Use GOPROXY environment variable if set
@@ -39,7 +39,7 @@ export GO111MODULE=on
 #
 # Kubebuilder.
 #
-export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.24.2
+export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.25.0
 export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT ?= 60s
 export KUBEBUILDER_CONTROLPLANE_STOP_TIMEOUT ?= 60s
 
@@ -59,6 +59,7 @@ TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/$(BIN_DIR))
 E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
 CAPD_DIR := $(TEST_DIR)/infrastructure/docker
 GO_INSTALL := ./scripts/go_install.sh
+OBSERVABILITY_DIR := hack/observability
 
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
@@ -84,7 +85,7 @@ SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER))
 SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
 
-CONTROLLER_GEN_VER := v0.9.1
+CONTROLLER_GEN_VER := v0.9.2
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 CONTROLLER_GEN_PKG := sigs.k8s.io/controller-tools/cmd/controller-gen
@@ -94,7 +95,7 @@ GOTESTSUM_BIN := gotestsum
 GOTESTSUM := $(abspath $(TOOLS_BIN_DIR)/$(GOTESTSUM_BIN)-$(GOTESTSUM_VER))
 GOTESTSUM_PKG := gotest.tools/gotestsum
 
-CONVERSION_GEN_VER := v0.23.1
+CONVERSION_GEN_VER := v0.25.0
 CONVERSION_GEN_BIN := conversion-gen
 # We are intentionally using the binary without version suffix, to avoid the version
 # in generated files.
@@ -175,6 +176,9 @@ CLUSTERCTL_IMG ?= $(REGISTRY)/$(CLUSTERCTL_IMAGE_NAME)
 TEST_EXTENSION_IMAGE_NAME ?= test-extension
 TEST_EXTENSION_IMG ?= $(REGISTRY)/$(TEST_EXTENSION_IMAGE_NAME)
 
+# kind
+CAPI_KIND_CLUSTER_NAME ?= capi-test
+
 # It is set by Prow GIT_TAG, a git-based tag of the form vYYYYMMDD-hash, e.g., v20210120-v0.3.10-308-gc61521971
 
 TAG ?= dev
@@ -209,7 +213,7 @@ ALL_GENERATE_MODULES = core kubeadm-bootstrap kubeadm-control-plane capd
 
 .PHONY: generate
 generate: ## Run all generate-manifests-*, generate-go-deepcopy-*, generate-go-conversions-* and generate-go-openapi targets
-	$(MAKE) generate-modules generate-manifests generate-go-deepcopy generate-go-conversions generate-go-openapi
+	$(MAKE) generate-modules generate-manifests generate-go-deepcopy generate-go-conversions generate-go-openapi generate-metrics-config
 
 .PHONY: generate-manifests
 generate-manifests: $(addprefix generate-manifests-,$(ALL_GENERATE_MODULES)) ## Run all generate-manifests-* targets
@@ -433,6 +437,20 @@ generate-modules: ## Run go mod tidy to ensure modules are up to date
 	go mod tidy
 	cd $(TOOLS_DIR); go mod tidy
 	cd $(TEST_DIR); go mod tidy
+
+.PHONY: generate-metrics-config
+generate-metrics-config: $(ENVSUBST_BIN) ## Generate ./hack/observability/kube-state-metrics/crd-config.yaml
+	OUTPUT_FILE="${OBSERVABILITY_DIR}/kube-state-metrics/crd-config.yaml"; \
+	METRICS_DIR="${OBSERVABILITY_DIR}/kube-state-metrics/metrics"; \
+	echo "# This file was auto-generated via: make generate-metrics-config" > "$${OUTPUT_FILE}"; \
+	cat "$${METRICS_DIR}/header.yaml" >> "$${OUTPUT_FILE}"; \
+	for resource in cluster kubeadmcontrolplane machine machinedeployment machinehealthcheck machineset; do \
+		cat "$${METRICS_DIR}/$${resource}.yaml"; \
+		RESOURCE="$${resource}" ${ENVSUBST_BIN} < "$${METRICS_DIR}/common_metrics.yaml"; \
+		if [[ "$${resource}" != "cluster" ]]; then \
+			cat "$${METRICS_DIR}/owner_metric.yaml"; \
+		fi \
+	done >> "$${OUTPUT_FILE}"; \
 
 .PHONY: generate-diagrams
 generate-diagrams: ## Generate diagrams for *.plantuml files
@@ -669,6 +687,10 @@ test-capd-junit: $(SETUP_ENVTEST) $(GOTESTSUM) ## Run unit and integration tests
 kind-cluster: ## Create a new kind cluster designed for development with Tilt
 	hack/kind-install-for-capd.sh
 
+.PHONY: tilt-up
+tilt-up: kind-cluster ## Start tilt and build kind cluster if needed.
+	tilt up
+
 .PHONY: docker-build-e2e
 docker-build-e2e: ## Rebuild all Cluster API provider images to be used in the e2e tests
 	$(MAKE) docker-build REGISTRY=gcr.io/k8s-staging-cluster-api PULL_POLICY=IfNotPresent
@@ -733,7 +755,7 @@ manifest-modification: # Set the manifest images to the staging/production bucke
 	$(MAKE) set-manifest-pull-policy PULL_POLICY=IfNotPresent TARGET_RESOURCE="./bootstrap/kubeadm/config/default/manager_pull_policy.yaml"
 	$(MAKE) set-manifest-pull-policy PULL_POLICY=IfNotPresent TARGET_RESOURCE="./controlplane/kubeadm/config/default/manager_pull_policy.yaml"
 
-.PHONE: manifest-modification-dev
+.PHONY: manifest-modification-dev
 manifest-modification-dev: # Set the manifest images to the staging bucket.
 	$(MAKE) set-manifest-image \
 		MANIFEST_IMG=$(REGISTRY)/$(CAPD_IMAGE_NAME) MANIFEST_TAG=$(RELEASE_TAG) \
@@ -934,14 +956,31 @@ set-manifest-image:
 ##@ clean:
 
 .PHONY: clean
-clean: ## Remove all generated files
+clean: ## Remove generated binaries, GitBook files, Helm charts, and Tilt build files
 	$(MAKE) clean-bin
 	$(MAKE) clean-book
+	$(MAKE) clean-charts
+	$(MAKE) clean-tilt
+
+.PHONY: clean-kind
+clean-kind: ## Cleans up the kind cluster with the name $CAPI_KIND_CLUSTER_NAME
+	kind delete cluster --name="$(CAPI_KIND_CLUSTER_NAME)" || true
 
 .PHONY: clean-bin
 clean-bin: ## Remove all generated binaries
 	rm -rf $(BIN_DIR)
 	rm -rf $(TOOLS_BIN_DIR)
+
+.PHONY: clean-tilt
+clean-tilt: clean-charts clean-kind ## Remove all files generated by Tilt
+	rm -rf ./.tiltbuild
+	rm -rf ./controlplane/kubeadm/.tiltbuild
+	rm -rf ./bootstrap/kubeadm/.tiltbuild
+	rm -rf ./test/infrastructure/docker/.tiltbuild
+
+.PHONY: clean-charts
+clean-charts: ## Remove all local copies of Helm charts in ./hack/observability
+	(for path in "./hack/observability/*"; do rm -rf $$path/charts ; done)
 
 .PHONY: clean-book
 clean-book: ## Remove all generated GitBook files

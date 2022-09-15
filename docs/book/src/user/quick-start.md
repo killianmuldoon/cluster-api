@@ -30,7 +30,7 @@ a target [management cluster] on the selected [infrastructure provider].
 
 1. **Existing Management Cluster**
 
-   For production use-cases a "real" Kubernetes cluster should be used with appropriate backup and DR policies and procedures in place. The Kubernetes cluster must be at least v1.20.0.
+   For production use-cases a "real" Kubernetes cluster should be used with appropriate backup and disaster recovery policies and procedures in place. The Kubernetes cluster must be at least v1.20.0.
 
    ```bash
    export KUBECONFIG=<...>
@@ -45,7 +45,7 @@ a target [management cluster] on the selected [infrastructure provider].
 
    [kind] is not designed for production use.
 
-   **Minimum [kind] supported version**: v0.14.0
+   **Minimum [kind] supported version**: v0.15.0
 
    **Help with common issues can be found in the [Troubleshooting Guide](./troubleshooting.md).**
 
@@ -517,7 +517,7 @@ The output of `clusterctl init` is similar to this:
 
 ```bash
 Fetching providers
-Installing cert-manager Version="v1.8.2"
+Installing cert-manager Version="v1.9.1"
 Waiting for cert-manager to be available...
 Installing Provider="cluster-api" Version="v1.0.0" TargetNamespace="capi-system"
 Installing Provider="bootstrap-kubeadm" Version="v1.0.0" TargetNamespace="capi-kubeadm-bootstrap-system"
@@ -699,23 +699,30 @@ export ENABLE_POD_SECURITY_STANDARD="false"
 {{#/tab }}
 {{#tab Equinix Metal}}
 
-There are a couple of required environment variables that you have to expose in
-order to get a well tuned and function workload, they are all listed here:
+There are several required variables you need to set to create a cluster. There
+are also a few optional tunables if you'd like to change the OS or CIDRs used.
 
 ```bash
+# Required (made up examples shown)
 # The project where your cluster will be placed to.
 # You have to get one from the Equinix Metal Console if you don't have one already.
-export PROJECT_ID="5yd4thd-5h35-5hwk-1111-125gjej40930"
+export PROJECT_ID="2b59569f-10d1-49a6-a000-c2fb95a959a1"
 # The facility where you want your cluster to be provisioned
-export FACILITY="ewr1"
-# The operatin system used to provision the device
+export FACILITY="da11"
+# What plan to use for your control plane nodes
+export CONTROLPLANE_NODE_TYPE="m3.small.x86"
+# What plan to use for your worker nodes
+export WORKER_NODE_TYPE="m3.small.x86"
+# The ssh key you would like to have access to the nodes
+export SSH_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDvMgVEubPLztrvVKgNPnRe9sZSjAqaYj9nmCkgr4PdK username@computer"
+export CLUSTER_NAME="my-cluster"
+
+# Optional (defaults shown)
 export NODE_OS="ubuntu_18_04"
-# The ssh key name you loaded in the Equinix Metal Console
-export SSH_KEY="my-ssh"
 export POD_CIDR="192.168.0.0/16"
 export SERVICE_CIDR="172.26.0.0/16"
-export CONTROLPLANE_NODE_TYPE="t1.small"
-export WORKER_NODE_TYPE="t1.small"
+# Only relevant if using the kube-vip flavor
+export KUBE_VIP_VERSION="v0.5.0"
 ```
 
 {{#/tab }}
@@ -948,7 +955,7 @@ The Docker provider is not designed for production use and is intended for devel
 
 ```bash
 clusterctl generate cluster capi-quickstart --flavor development \
-  --kubernetes-version v1.24.0 \
+  --kubernetes-version v1.25.0 \
   --control-plane-machine-count=3 \
   --worker-machine-count=3 \
   > capi-quickstart.yaml
@@ -960,7 +967,7 @@ clusterctl generate cluster capi-quickstart --flavor development \
 ```bash
 export CLUSTER_NAME=kind
 export CLUSTER_NAMESPACE=vcluster
-export KUBERNETES_VERSION=1.23.4
+export KUBERNETES_VERSION=1.25.0
 export HELM_VALUES="service:\n  type: NodePort"
 
 kubectl create namespace ${CLUSTER_NAMESPACE}
@@ -975,7 +982,7 @@ clusterctl generate cluster ${CLUSTER_NAME} \
 
 ```bash
 clusterctl generate cluster capi-quickstart \
-  --kubernetes-version v1.24.0 \
+  --kubernetes-version v1.25.0 \
   --control-plane-machine-count=3 \
   --worker-machine-count=3 \
   > capi-quickstart.yaml
@@ -1034,8 +1041,8 @@ kubectl get kubeadmcontrolplane
 You should see an output is similar to this:
 
 ```bash
-NAME                            INITIALIZED   API SERVER AVAILABLE   VERSION   REPLICAS   READY   UPDATED   UNAVAILABLE
-capi-quickstart-control-plane   true                                 v1.24.0   3                  3         3
+NAME                    CLUSTER           INITIALIZED   API SERVER AVAILABLE   REPLICAS   READY   UPDATED   UNAVAILABLE   AGE    VERSION
+capi-quickstart-g2trk   capi-quickstart   true                                 3                  3         3             4m7s   v1.25.0
 ```
 
 <aside class="note warning">
@@ -1091,7 +1098,7 @@ Calico not required for vcluster.
 
 ```bash
 kubectl --kubeconfig=./capi-quickstart.kubeconfig \
-  apply -f https://docs.projectcalico.org/v3.21/manifests/calico.yaml
+  apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.24.1/manifests/calico.yaml
 ```
 
 After a short while, our nodes should be running and in `Ready` state,
@@ -1099,6 +1106,15 @@ let's check the status using `kubectl get nodes`:
 
 ```bash
 kubectl --kubeconfig=./capi-quickstart.kubeconfig get nodes
+```
+```bash
+NAME                                          STATUS   ROLES           AGE   VERSION
+capi-quickstart-g2trk-9xrjv                   Ready    control-plane   12m   v1.25.0
+capi-quickstart-g2trk-bmm9v                   Ready    control-plane   11m   v1.25.0
+capi-quickstart-g2trk-hvs9q                   Ready    control-plane   13m   v1.25.0
+capi-quickstart-md-0-55x6t-5649968bd7-8tq9v   Ready    <none>          12m   v1.25.0
+capi-quickstart-md-0-55x6t-5649968bd7-glnjd   Ready    <none>          12m   v1.25.0
+capi-quickstart-md-0-55x6t-5649968bd7-sfzp6   Ready    <none>          12m   v1.25.0
 ```
 
 {{#/tab }}

@@ -48,7 +48,7 @@ var (
 )
 
 func (r *Reconciler) reconcilePhase(_ context.Context, m *clusterv1.Machine) {
-	originalPhase := m.Status.Phase //nolint:ifshort // Cannot be inlined because m.Status.Phase might be changed before it is used in the if.
+	originalPhase := m.Status.Phase
 
 	// Set the phase to "pending" if nil.
 	if m.Status.Phase == "" {
@@ -98,7 +98,7 @@ func (r *Reconciler) reconcileExternal(ctx context.Context, cluster *clusterv1.C
 	obj, err := external.Get(ctx, r.Client, ref, m.Namespace)
 	if err != nil {
 		if apierrors.IsNotFound(errors.Cause(err)) {
-			log.Info("could not find external ref, requeueing", "refGVK", ref.GroupVersionKind(), "refName", ref.Name, "Machine", klog.KObj(m))
+			log.Info("could not find external ref, requeueing", ref.Kind, klog.KRef(m.Namespace, ref.Name))
 			return external.ReconcileOutput{RequeueAfter: externalReadyWait}, nil
 		}
 		return external.ReconcileOutput{}, err
@@ -232,7 +232,7 @@ func (r *Reconciler) reconcileBootstrap(ctx context.Context, cluster *clusterv1.
 	}
 	m.Spec.Bootstrap.DataSecretName = pointer.StringPtr(secretName)
 	if !m.Status.BootstrapReady {
-		log.Info("Bootstrap provider generated data secret and reports status.ready", bootstrapConfig.GetKind(), klog.KObj(bootstrapConfig), "secret", klog.KRef(m.Namespace, secretName))
+		log.Info("Bootstrap provider generated data secret and reports status.ready", bootstrapConfig.GetKind(), klog.KObj(bootstrapConfig), "Secret", klog.KRef(m.Namespace, secretName))
 	}
 	m.Status.BootstrapReady = true
 	return ctrl.Result{}, nil

@@ -14,22 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// main is the main package for the Test Extension.
 package main
 
 import (
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
+	logsv1 "k8s.io/component-base/logs/api/v1"
+	_ "k8s.io/component-base/logs/json/register"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
+	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	runtimecatalog "sigs.k8s.io/cluster-api/exp/runtime/catalog"
 	runtimehooksv1 "sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1"
 	"sigs.k8s.io/cluster-api/exp/runtime/server"
@@ -54,6 +61,8 @@ var (
 
 func init() {
 	_ = infrav1.AddToScheme(scheme)
+	_ = controlplanev1.AddToScheme(scheme)
+	_ = bootstrapv1.AddToScheme(scheme)
 
 	// Register the RuntimeHook types into the catalog.
 	_ = runtimehooksv1.AddToCatalog(catalog)
@@ -62,7 +71,7 @@ func init() {
 // InitFlags initializes the flags.
 func InitFlags(fs *pflag.FlagSet) {
 	logs.AddFlags(fs, logs.SkipLoggingConfigurationFlags())
-	logOptions.AddFlags(fs)
+	logsv1.AddFlags(logOptions, fs)
 
 	fs.StringVar(&profilerAddress, "profiler-address", "",
 		"Bind address to expose the pprof profiler (e.g. localhost:6060)")
@@ -80,7 +89,7 @@ func main() {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
 
-	if err := logOptions.ValidateAndApply(nil); err != nil {
+	if err := logsv1.ValidateAndApply(logOptions, nil); err != nil {
 		setupLog.Error(err, "unable to start extension")
 		os.Exit(1)
 	}
@@ -89,9 +98,12 @@ func main() {
 	ctrl.SetLogger(klog.Background())
 
 	if profilerAddress != "" {
-		klog.Infof("Profiler listening for requests at %s", profilerAddress)
+		setupLog.Info(fmt.Sprintf("Profiler listening for requests at %s", profilerAddress))
 		go func() {
-			klog.Info(http.ListenAndServe(profilerAddress, nil))
+			srv := http.Server{Addr: profilerAddress, ReadHeaderTimeout: 2 * time.Second}
+			if err := srv.ListenAndServe(); err != nil {
+				setupLog.Error(err, "problem running profiler server")
+			}
 		}()
 	}
 
@@ -107,6 +119,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Add the scheme with registered types to the topologyMutationHandler
 	topologyMutationHandler := topologymutation.NewHandler(scheme)
 
 	if err := webhookServer.AddExtensionHandler(server.ExtensionHandler{

@@ -1,13 +1,16 @@
 linters:
   disable-all: true
   enable:
+  - asasalint
   - asciicheck
+  - bidichk
   - bodyclose
   - containedctx
-  - deadcode
   - depguard
   - dogsled
+  - durationcheck
   - errcheck
+  - errchkjson
   - exportloopref
   - gci
   - goconst
@@ -19,7 +22,6 @@ linters:
   - gosec
   - gosimple
   - govet
-  - ifshort
   - importas
   - ineffassign
   - misspell
@@ -32,14 +34,12 @@ linters:
   - revive
   - rowserrcheck
   - staticcheck
-  - structcheck
   - stylecheck
   - thelper
   - typecheck
   - unconvert
   - unparam
   - unused
-  - varcheck
   - whitespace
 
 linters-settings:
@@ -51,9 +51,6 @@ linters-settings:
     exclude:
     - '^ \+.*'
     - '^ ANCHOR.*'
-  ifshort:
-    # Maximum length of variable declaration measured in number of characters, after which linter won't suggest using short syntax.
-    max-decl-chars: 50
   gci:
     local-prefixes: "sigs.k8s.io/cluster-api"
   importas:
@@ -70,6 +67,8 @@ linters-settings:
         alias: apierrors
       - pkg: k8s.io/apimachinery/pkg/util/errors
         alias: kerrors
+      - pkg: k8s.io/component-base/logs/api/v1
+        alias: logsv1
       # Controller Runtime
       - pkg: sigs.k8s.io/controller-runtime
         alias: ctrl
@@ -142,9 +141,9 @@ linters-settings:
     allow-leading-space: false
     require-specific: true
   staticcheck:
-    go: "1.18"
+    go: "1.19"
   stylecheck:
-    go: "1.18"
+    go: "1.19"
   gosec:
     excludes:
     - G307 # Deferring unsafe method "Close" on type "\*os.File"
@@ -167,7 +166,7 @@ linters-settings:
     - whyNoLint
     - wrapperFunc
   unused:
-    go: "1.18"
+    go: "1.19"
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -215,13 +214,7 @@ issues:
   - linters:
     - gocritic
     text: "appendAssign: append result not assigned to the same slice"
-  # ifshort flags variables that are only used in the if-statement even though there is
-  # already a SimpleStmt being used in the if-statement in question.
-  - linters:
-    - ifshort
-    text: "variable .* is only used in the if-statement"
-    path: controllers/mdutil/util.go
-  # Disable linters for conversion
+ # Disable linters for conversion
   - linters:
     - staticcheck
     text: "SA1019: in.(.+) is deprecated"
@@ -251,15 +244,6 @@ issues:
     - typecheck
     text: import (".+") is a program, not an importable package
     path: ^tools\.go$
-  # TODO(sbueringer) Ignore ifshort false positive: https://github.com/esimonov/ifshort/issues/23
-  - linters:
-    - ifshort
-    text:  "variable 'isDeleteNodeAllowed' is only used in the if-statement.*"
-    path: ^internal/controllers/machine/machine_controller\.go$
-  - linters:
-    - ifshort
-    text: "variable 'kcpMachinesWithErrors' is only used in the if-statement.*"
-    path: ^controlplane/kubeadm/internal/workload_cluster_conditions\.go$
   # We don't care about defer in for loops in test files.
   - linters:
     - gocritic
@@ -274,6 +258,4 @@ run:
   skip-files:
   - "zz_generated.*\\.go$"
   - "vendored_openapi\\.go$"
-  skip-dirs:
-  - third_party
   allow-parallel-runners: true

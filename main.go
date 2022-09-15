@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// main is the main package for the Cluster API Core Provider.
 package main
 
 import (
@@ -35,6 +36,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
+	logsv1 "k8s.io/component-base/logs/api/v1"
 	_ "k8s.io/component-base/logs/json/register"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -128,7 +130,7 @@ func init() {
 // InitFlags initializes the flags.
 func InitFlags(fs *pflag.FlagSet) {
 	logs.AddFlags(fs, logs.SkipLoggingConfigurationFlags())
-	logOptions.AddFlags(fs)
+	logsv1.AddFlags(logOptions, fs)
 
 	fs.StringVar(&metricsBindAddr, "metrics-bind-addr", "localhost:8080",
 		"The address the metric endpoint binds to.")
@@ -207,7 +209,7 @@ func main() {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
 
-	if err := logOptions.ValidateAndApply(nil); err != nil {
+	if err := logsv1.ValidateAndApply(logOptions, nil); err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
@@ -216,9 +218,12 @@ func main() {
 	ctrl.SetLogger(klog.Background())
 
 	if profilerAddress != "" {
-		klog.Infof("Profiler listening for requests at %s", profilerAddress)
+		setupLog.Info(fmt.Sprintf("Profiler listening for requests at %s", profilerAddress))
 		go func() {
-			klog.Info(http.ListenAndServe(profilerAddress, nil))
+			srv := http.Server{Addr: profilerAddress, ReadHeaderTimeout: 2 * time.Second}
+			if err := srv.ListenAndServe(); err != nil {
+				setupLog.Error(err, "problem running profiler server")
+			}
 		}()
 	}
 
