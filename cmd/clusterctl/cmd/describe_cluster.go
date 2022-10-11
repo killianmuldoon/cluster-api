@@ -103,7 +103,7 @@ var describeClusterClusterCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runDescribeCluster(args[0])
+		return runDescribeCluster(cmd, args[0])
 	},
 }
 
@@ -150,7 +150,7 @@ func init() {
 	describeCmd.AddCommand(describeClusterClusterCmd)
 }
 
-func runDescribeCluster(name string) error {
+func runDescribeCluster(cmd *cobra.Command, name string) error {
 	c, err := client.New(cfgFile)
 	if err != nil {
 		return err
@@ -172,8 +172,8 @@ func runDescribeCluster(name string) error {
 		return err
 	}
 
-	if dc.color {
-		color.NoColor = false
+	if cmd.Flags().Changed("color") {
+		color.NoColor = !dc.color
 	}
 
 	printObjectTree(tree)
