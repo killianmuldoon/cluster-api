@@ -81,9 +81,19 @@ type ClusterctlUpgradeSpecInput struct {
 	PreInit             func(managementClusterProxy framework.ClusterProxy)
 	PreUpgrade          func(managementClusterProxy framework.ClusterProxy)
 	PostUpgrade         func(managementClusterProxy framework.ClusterProxy)
-	MgmtFlavor          string
-	CNIManifestPath     string
-	WorkloadFlavor      string
+	// PreCleanupManagementCluster hook can be used for extra steps that might be required from providers, for example, remove conflicting service (such as DHCP) running on
+	// the target management cluster and run it on bootstrap (before the latter resumes LCM) if both clusters share the same LAN
+	PreCleanupManagementCluster func(managementClusterProxy framework.ClusterProxy)
+	MgmtFlavor                  string
+	CNIManifestPath             string
+	WorkloadFlavor              string
+	// Custom providers can be specified to upgrade to a pre-release or a custom version instead of upgrading to the latest using contact
+	CoreProvider              string
+	BootstrapProviders        []string
+	ControlPlaneProviders     []string
+	InfrastructureProviders   []string
+	IPAMProviders             []string
+	RuntimeExtensionProviders []string
 }
 
 // ClusterctlUpgradeSpec implements a test that verifies clusterctl upgrade of a management cluster.
@@ -194,8 +204,8 @@ func ClusterctlUpgradeSpec(ctx context.Context, inputGetter func() ClusterctlUpg
 				Namespace:                managementClusterNamespace.Name,
 				ClusterName:              managementClusterName,
 				KubernetesVersion:        initKubernetesVersion,
-				ControlPlaneMachineCount: pointer.Int64Ptr(1),
-				WorkerMachineCount:       pointer.Int64Ptr(1),
+				ControlPlaneMachineCount: pointer.Int64(1),
+				WorkerMachineCount:       pointer.Int64(1),
 			},
 			PreWaitForCluster: func() {
 				if input.PreWaitForCluster != nil {
@@ -276,8 +286,8 @@ func ClusterctlUpgradeSpec(ctx context.Context, inputGetter func() ClusterctlUpg
 
 		workLoadClusterName = fmt.Sprintf("%s-%s", specName, util.RandomString(6))
 		kubernetesVersion := input.E2EConfig.GetVariable(KubernetesVersion)
-		controlPlaneMachineCount := pointer.Int64Ptr(1)
-		workerMachineCount := pointer.Int64Ptr(1)
+		controlPlaneMachineCount := pointer.Int64(1)
+		workerMachineCount := pointer.Int64(1)
 
 		log.Logf("Creating the workload cluster with name %q using the %q template (Kubernetes %s, %d control-plane machines, %d worker machines)",
 			workLoadClusterName, "(default)", kubernetesVersion, *controlPlaneMachineCount, *workerMachineCount)
@@ -342,15 +352,38 @@ func ClusterctlUpgradeSpec(ctx context.Context, inputGetter func() ClusterctlUpg
 			client.MatchingLabels{clusterv1.ClusterLabelName: workLoadClusterName},
 		)
 		Expect(err).NotTo(HaveOccurred())
+		// Check if the user want a custom upgrade
+		isCustomUpgrade := input.CoreProvider != "" ||
+			len(input.BootstrapProviders) > 0 ||
+			len(input.ControlPlaneProviders) > 0 ||
+			len(input.InfrastructureProviders) > 0 ||
+			len(input.IPAMProviders) > 0 ||
+			len(input.RuntimeExtensionProviders) > 0
 
-		By("Upgrading providers to the latest version available")
-		clusterctl.UpgradeManagementClusterAndWait(ctx, clusterctl.UpgradeManagementClusterAndWaitInput{
-			ClusterctlConfigPath: input.ClusterctlConfigPath,
-			ClusterctlVariables:  input.UpgradeClusterctlVariables,
-			ClusterProxy:         managementClusterProxy,
-			Contract:             clusterv1.GroupVersion.Version,
-			LogFolder:            filepath.Join(input.ArtifactFolder, "clusters", cluster.Name),
-		}, input.E2EConfig.GetIntervals(specName, "wait-controllers")...)
+		if isCustomUpgrade {
+			By("Upgrading providers to custom versions")
+			clusterctl.UpgradeManagementClusterAndWait(ctx, clusterctl.UpgradeManagementClusterAndWaitInput{
+				ClusterctlConfigPath:      input.ClusterctlConfigPath,
+				ClusterctlVariables:       input.UpgradeClusterctlVariables,
+				ClusterProxy:              managementClusterProxy,
+				CoreProvider:              input.CoreProvider,
+				BootstrapProviders:        input.BootstrapProviders,
+				ControlPlaneProviders:     input.ControlPlaneProviders,
+				InfrastructureProviders:   input.InfrastructureProviders,
+				IPAMProviders:             input.IPAMProviders,
+				RuntimeExtensionProviders: input.RuntimeExtensionProviders,
+				LogFolder:                 filepath.Join(input.ArtifactFolder, "clusters", cluster.Name),
+			}, input.E2EConfig.GetIntervals(specName, "wait-controllers")...)
+		} else {
+			By("Upgrading providers to the latest version available")
+			clusterctl.UpgradeManagementClusterAndWait(ctx, clusterctl.UpgradeManagementClusterAndWaitInput{
+				ClusterctlConfigPath: input.ClusterctlConfigPath,
+				ClusterctlVariables:  input.UpgradeClusterctlVariables,
+				ClusterProxy:         managementClusterProxy,
+				Contract:             clusterv1.GroupVersion.Version,
+				LogFolder:            filepath.Join(input.ArtifactFolder, "clusters", cluster.Name),
+			}, input.E2EConfig.GetIntervals(specName, "wait-controllers")...)
+		}
 
 		By("THE MANAGEMENT CLUSTER WAS SUCCESSFULLY UPGRADED!")
 
@@ -467,6 +500,10 @@ func ClusterctlUpgradeSpec(ctx context.Context, inputGetter func() ClusterctlUpg
 			testCancelWatches()
 		}
 
+		if input.PreCleanupManagementCluster != nil {
+			By("Running PreCleanupManagementCluster steps against the management cluster")
+			input.PreCleanupManagementCluster(managementClusterProxy)
+		}
 		// Dumps all the resources in the spec namespace, then cleanups the cluster object and the spec namespace itself.
 		dumpSpecResourcesAndCleanup(ctx, specName, input.BootstrapClusterProxy, input.ArtifactFolder, managementClusterNamespace, managementClusterCancelWatches, managementClusterResources.Cluster, input.E2EConfig.GetIntervals, input.SkipCleanup)
 	})

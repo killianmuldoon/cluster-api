@@ -107,13 +107,9 @@ Download the latest release; on linux, type:
 ```bash
 curl -L {{#releaselink gomodule:"sigs.k8s.io/cluster-api" asset:"clusterctl-linux-amd64" version:"1.2.x"}} -o clusterctl
 ```
-Make the clusterctl binary executable.
+Install clusterctl:
 ```bash
-chmod +x ./clusterctl
-```
-Move the binary in to your PATH.
-```bash
-sudo mv ./clusterctl /usr/local/bin/clusterctl
+sudo install -o root -g root -m 0755 clusterctl /usr/local/bin/clusterctl
 ```
 Test to ensure the version you installed is up-to-date:
 ```bash
@@ -206,7 +202,7 @@ Additional documentation about experimental features can be found in [Experiment
 Depending on the infrastructure provider you are planning to use, some additional prerequisites should be satisfied
 before getting started with Cluster API. See below for the expected settings for common providers.
 
-{{#tabs name:"tab-installation-infrastructure" tabs:"AWS,Azure,CloudStack,DigitalOcean,Docker,Equinix Metal,GCP,Hetzner,IBM Cloud,Kubevirt,Metal3,Nutanix,OCI,OpenStack,VCD,vcluster,Virtink,vSphere"}}
+{{#tabs name:"tab-installation-infrastructure" tabs:"AWS,Azure,CloudStack,DigitalOcean,Docker,Equinix Metal,GCP,Hetzner,IBM Cloud,Kubevirt,Metal3,Nutanix,OCI,OpenStack,Outscale,VCD,vcluster,Virtink,vSphere"}}
 {{#tab AWS}}
 
 Download the latest binary of `clusterawsadm` from the [AWS provider releases].
@@ -367,6 +363,7 @@ clusterctl init --infrastructure digitalocean
 ```
 
 {{#/tab }}
+
 {{#tab Docker}}
 
 <aside class="note warning">
@@ -465,6 +462,23 @@ clusterctl init --infrastructure openstack
 ```
 
 {{#/tab }}
+
+{{#tab Outscale}}
+
+```bash
+export OSC_SECRET_KEY=<your-secret-key>
+export OSC_ACCESS_KEY=<your-access-key>
+export OSC_REGION=<you-region>
+# Create namespace
+kubectl create namespace cluster-api-provider-outscale-system
+# Create secret
+kubectl create secret generic cluster-api-provider-outscale --from-literal=access_key=${OSC_ACCESS_KEY} --from-literal=secret_key=${OSC_SECRET_KEY} --from-literal=region=${OSC_REGION}  -n cluster-api-provider-outscale-system 
+# Initialize the management cluster
+clusterctl init --infrastructure outscale
+```
+
+{{#/tab }}
+
 {{#tab VCD}}
 
 Please follow the Cluster API Provider for [Cloud Director Getting Started Guide](https://github.com/vmware/cluster-api-provider-cloud-director/blob/main/README.md)
@@ -517,7 +531,7 @@ The output of `clusterctl init` is similar to this:
 
 ```bash
 Fetching providers
-Installing cert-manager Version="v1.9.1"
+Installing cert-manager Version="v1.10.0"
 Waiting for cert-manager to be available...
 Installing Provider="cluster-api" Version="v1.0.0" TargetNamespace="capi-system"
 Installing Provider="bootstrap-kubeadm" Version="v1.0.0" TargetNamespace="capi-kubeadm-bootstrap-system"
@@ -579,7 +593,7 @@ before configuring a cluster with Cluster API. Instructions are provided for com
 Otherwise, you can look at the `clusterctl generate cluster` [command][clusterctl generate cluster] documentation for details about how to
 discover the list of variables required by a cluster templates.
 
-{{#tabs name:"tab-configuration-infrastructure" tabs:"AWS,Azure,CloudStack,DigitalOcean,Docker,Equinix Metal,GCP,IBM Cloud,Kubevirt,Metal3,Nutanix,OpenStack,VCD,vcluster,Virtink,vSphere"}}
+{{#tabs name:"tab-configuration-infrastructure" tabs:"AWS,Azure,CloudStack,DigitalOcean,Docker,Equinix Metal,GCP,IBM Cloud,Kubevirt,Metal3,Nutanix,OpenStack,Outscale,VCD,vcluster,Virtink,vSphere"}}
 {{#tab AWS}}
 
 ```bash
@@ -666,6 +680,7 @@ export DO_NODE_MACHINE_IMAGE==<your-capi-image-id>
 ```
 
 {{#/tab }}
+
 {{#tab Docker}}
 
 <aside class="note warning">
@@ -870,6 +885,29 @@ export OPENSTACK_EXTERNAL_NETWORK_ID=<external network ID>
 A full configuration reference can be found in [configuration.md](https://github.com/kubernetes-sigs/cluster-api-provider-openstack/blob/master/docs/book/src/clusteropenstack/configuration.md).
 
 {{#/tab }}
+{{#tab Outscale}}
+
+A ClusterAPI compatible image must be available in your Outscale account. For instructions on how to build a compatible image
+see [image-builder](https://image-builder.sigs.k8s.io/capi/capi.html).
+
+```bash
+# The outscale root disk iops
+export OSC_IOPS="<IOPS>"
+# The outscale root disk size
+export OSC_VOLUME_SIZE="<VOLUME_SIZE>"
+# The outscale root disk volumeType
+export OSC_VOLUME_TYPE="<VOLUME_TYPE>"
+# The outscale key pair
+export OSC_KEYPAIR_NAME="<KEYPAIR_NAME>"
+# The outscale subregion name
+export OSC_SUBREGION_NAME="<SUBREGION_NAME>"
+# The outscale vm type
+export OSC_VM_TYPE="<VM_TYPE>"
+# The outscale image name
+export OSC_IMAGE_NAME="<IMAGE_NAME>"
+```
+
+{{#/tab }}
 {{#tab VCD}}
 
 A ClusterAPI compatible image must be available in your VCD catalog. For instructions on how to build and upload a compatible image
@@ -1053,19 +1091,34 @@ The control plane won't be `Ready` until we install a CNI in the next step.
 
 </aside>
 
-After the first control plane node is up and running, we can retrieve the [workload cluster] Kubeconfig:
+After the first control plane node is up and running, we can retrieve the [workload cluster] Kubeconfig.
+
+{{#tabs name:"tab-get-kubeconfig" tabs:"Default,Docker"}}
+
+{{#/tab }}
+{{#tab Default}}
 
 ```bash
 clusterctl get kubeconfig capi-quickstart > capi-quickstart.kubeconfig
 ```
 
+{{#/tab }}
+
+{{#tab Docker}}
+For Docker Desktop on macOS, Linux or Windows use kind to retrieve the kubeconfig. Docker Engine for Linux works with the default clusterctl approach.
+
+```bash
+kind get kubeconfig --name capi-quickstart > capi-quickstart.kubeconfig
+```
+
 <aside class="note warning">
 
-<h1>Warning</h1>
-
-If you're using Docker Desktop on macOS, or Docker Desktop (Docker Engine works fine) on Linux, you'll need to take a few extra steps to get the kubeconfig for a workload cluster created with the Docker provider. See [Additional Notes for the Docker provider](../clusterctl/developers.md#additional-notes-for-the-docker-provider).
+Note: To use the default clusterctl method to retrieve kubeconfig for a workload cluster created with the Docker provider when using Docker Desktop see [Additional Notes for the Docker provider](../clusterctl/developers.md#additional-notes-for-the-docker-provider).
 
 </aside>
+
+{{#/tab }}
+{{#/tabs }}
 
 ### Deploy a CNI solution
 
