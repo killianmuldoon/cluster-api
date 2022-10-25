@@ -8,8 +8,6 @@ kubernetes_version = "v1.25.0"
 if str(local("command -v " + kubectl_cmd + " || true", quiet = True)) == "":
     fail("Required command '" + kubectl_cmd + "' not found in PATH")
 
-load("ext://uibutton", "cmd_button", "location", "text_input")
-
 # set defaults
 version_settings(True, ">=0.22.2")
 
@@ -389,16 +387,6 @@ def deploy_observability():
         k8s_yaml(read_file("./.tiltbuild/yaml/loki.observability.yaml"), allow_duplicates = True)
         k8s_resource(workload = "loki", port_forwards = "3100", extra_pod_selectors = [{"app": "loki"}], labels = ["observability"])
 
-        cmd_button(
-            "loki:import logs",
-            argv = ["sh", "-c", "cd ./hack/tools/log-push && go run ./main.go --log-path=$LOG_PATH"],
-            resource = "loki",
-            icon_name = "import_export",
-            text = "Import logs",
-            inputs = [
-                text_input("LOG_PATH", label = "Log path, one of: GCS path, ProwJob URL or local folder"),
-            ],
-        )
 
     if "grafana" in settings.get("deploy_observability", []):
         k8s_yaml(read_file("./.tiltbuild/yaml/grafana.observability.yaml"), allow_duplicates = True)
@@ -485,27 +473,6 @@ def deploy_clusterclass(clusterclass_name, label, filename, substitutions):
         labels = [label + ".clusterclasses"],
     )
 
-    cmd_button(
-        clusterclass_name + ":apply",
-        argv = ["bash", "-c", apply_clusterclass_cmd],
-        resource = clusterclass_name,
-        icon_name = "note_add",
-        text = "Apply `" + clusterclass_name + "` ClusterClass",
-        inputs = [
-            text_input("NAMESPACE", default = substitutions.get("NAMESPACE")),
-        ],
-    )
-
-    cmd_button(
-        clusterclass_name + ":delete",
-        argv = ["bash", "-c", delete_clusterclass_cmd],
-        resource = clusterclass_name,
-        icon_name = "delete_forever",
-        text = "Delete `" + clusterclass_name + "` ClusterClass",
-        inputs = [
-            text_input("NAMESPACE", default = substitutions.get("NAMESPACE")),
-        ],
-    )
 
 def deploy_cluster_template(template_name, label, filename, substitutions):
     apply_cluster_template_cmd = "CLUSTER_NAME=" + template_name + "-$RANDOM;" + clusterctl_cmd + " generate cluster -n $NAMESPACE $CLUSTER_NAME --from " + filename + " | " + kubectl_cmd + " apply -f - && echo \"Cluster '$CLUSTER_NAME' created, don't forget to delete\n\""
@@ -518,39 +485,6 @@ def deploy_cluster_template(template_name, label, filename, substitutions):
         auto_init = False,
         trigger_mode = TRIGGER_MODE_MANUAL,
         labels = [label + ".templates"],
-    )
-
-    cmd_button(
-        template_name + ":apply",
-        argv = ["bash", "-c", apply_cluster_template_cmd],
-        resource = template_name,
-        icon_name = "add_box",
-        text = "Create `" + template_name + "` cluster",
-        inputs = [
-            text_input("NAMESPACE", default = substitutions.get("NAMESPACE")),
-            text_input("KUBERNETES_VERSION", default = substitutions.get("KUBERNETES_VERSION")),
-            text_input("CONTROL_PLANE_MACHINE_COUNT", default = substitutions.get("CONTROL_PLANE_MACHINE_COUNT")),
-            text_input("WORKER_MACHINE_COUNT", default = substitutions.get("WORKER_MACHINE_COUNT")),
-        ],
-    )
-
-    cmd_button(
-        template_name + ":delete",
-        argv = ["bash", "-c", delete_clusters_cmd],
-        resource = template_name,
-        icon_name = "delete_forever",
-        text = "Delete `" + template_name + "` clusters",
-        inputs = [
-            text_input("NAMESPACE", default = substitutions.get("NAMESPACE")),
-        ],
-    )
-
-    cmd_button(
-        template_name + ":delete-all",
-        argv = ["bash", "-c", kubectl_cmd + " delete clusters --all --wait=false"],
-        resource = template_name,
-        icon_name = "delete_sweep",
-        text = "Delete all workload clusters",
     )
 
 ##############################
