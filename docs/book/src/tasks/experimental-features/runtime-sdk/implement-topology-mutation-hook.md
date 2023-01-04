@@ -10,17 +10,20 @@ Please note Runtime SDK is an advanced feature. If implemented incorrectly, a fa
 
 ## Introduction
 
-The Topology Mutation Hooks are going to be called during each Cluster topology reconciliation. More specifically 
-we are going to call two different hooks for each reconciliation:
+Three different hooks are called as part of Topology Mutation - two in the Cluster topology reconciler and one in the ClusterClass reconciler.
 
+**Cluster topology reconciliation**
 * **GeneratePatches**: GeneratePatches is responsible for generating patches for the entire Cluster topology.
 * **ValidateTopology**: ValidateTopology is called after all patches have been applied and thus allow to validate 
   the resulting objects.
 
+**ClusterClass reconciliation**
+* **DiscoverVariables**: DiscoverVariables is responsible for providing variable definitions for a specific ClusterClass.
+
 ![Cluster topology reconciliation](../../../images/runtime-sdk-topology-mutation.png)
 
 Please see the corresponding [CAEP](https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20220330-topology-mutation-hook.md)
-for additional background information. 
+for additional background information.
 
 ## Inline vs. external patches
 
@@ -35,11 +38,103 @@ External patches have the following advantages:
 * External patches can use external data (e.g. from cloud APIs) during patch generation.
 * External patches can be easily reused across ClusterClasses.
 
+## External variables
+The DiscoverVariables hook can be used to supply variable definitions for use in external patches. These variable definitions are added to
+any applicable ClusterClasses. Clusters using the ClusterClass can then set values for those variables.
+
+### External variable discovery in the ClusterClass
+External variable definitions are discovered by calling the DiscoverVariables runtime hook. This hook is called from the ClusterClass reconciler.
+Once discovered the variable definitions are validated and stored in ClusterClass status.
+
+```yaml
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: ClusterClass
+# metadata
+spec:
+    # Inline variable definitions
+    variables:
+    - name: http-proxy
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: "proxy.example.com"
+          example: "proxy.example.com"
+          description: "proxy for http calls."
+    # External patch definitions.
+    patches:
+    - name: lbImageRepository
+      external:
+          generateExtension: generate-patches.k8s-upgrade-with-runtimesdk
+          validateExtension: validate-topology.k8s-upgrade-with-runtimesdk
+          ## Explicitly call variable discovery for this patch.
+          variableDiscovery: variable-discovery.k8s-upgrade-with-runtimesdk
+status:
+    # observedGeneration is used to check that the current version of the ClusterClass is the same as that when the Status was previously written.
+    # if metadata.generation isn't the same as observedGeneration Cluster using the ClusterClass should not reconcile.
+    observedGeneration: xx
+    # variables contains a list of all variable definitions, both inline and external, that belong to the ClusterClass.
+    variables: 
+        - name: http-proxy
+          schema:
+            openAPIV3Schema:
+             type: string
+             # default is different so this variable does not match the inline definition.
+             default: "proxy.example3.com"
+             example: "proxy.example.com"
+             description: "proxy for http calls."
+          # namespace is added as this variable's schema isn't equivalent to the inline definition.
+          namespace: lbImageRepository
+          # A variable can have multiple origins (altenate name /sources/??)
+          # TODO: What purpose does this serve?
+         # origins: 
+         #  VariableDiscovery:
+         #  - patch: lbImageRepository # not sure if to use this or variableDiscovery << to list
+        - name: http-proxy
+          schema:
+          openAPIV3Schema:
+            type: string
+            default: "proxy.example.com"
+            example: "proxy.example.com"
+            description: "proxy for http calls."
+          namespace: inline
+```
+
+### Variable namespacing
+Variable definitions can be inline in the ClusterClass or from any number of external DiscoverVariables hooks.
+If all variables that share a name have equivalent schemas the variables are considered to be in the global namespace.
+Note: This is always the case if there is only one variable with a particular name.
+The CAPI components will consider variable definitions to be equivalent when they share a name and `openAPIV3Schema` fields
+excluding `description` and `example` are exactly equal. (TODO: Clarify this.)
+
+If two or more variables which share a name do not have equivalent schemas, the variables will be namespaced. This means they will
+appear namespaced in the ClusterClass `.status.variables` and setting values in the Cluster `.topology.spec.variables` will also require setting a namespace.
+The namespace on a variable will depend on its source (TODO: RUNTIME_EXTENSION name or patch name?)
+Note: When namespaced inline variables can be set without a namespace as they are always in the global namespace.
+
+### Setting values for variables in the Cluster
+Setting variables using external variables requires attention to be paid to variable namespacing, as exposed in the ClusterClass status. 
+Variable values are set in Cluster `.spec.topology.variables`.
+
+```yaml
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+#metadata 
+spec:
+    topology:
+        variables:
+        - name: http_proxy
+          # If not defined or empty this variable is in the global namepsace.
+          # is a list 
+          namespaces: 
+            - lbImageRepository
+            - inline
+          value: "proxy.example2.com"
+```
 ## Using one or multiple external patch extensions
 
 Some considerations:
 * In general a single external patch extension is simpler than many, as only one extension 
-  then has to be built, deployed and managed. 
+  then has to be built, deployed and managed.
 * A single extension also requires less HTTP round-trips between the CAPI controller and the extension(s).
 * With a single extension it is still possible to implement multiple logical features using different variables.
 * When implementing multiple logical features in one extension it's recommended that they can be conditionally
@@ -52,6 +147,7 @@ Some considerations:
 For general Runtime Extension developer guidelines please refer to the guidelines in [Implementing Runtime Extensions](implement-extensions.md#guidelines).
 This section outlines considerations specific to Topology Mutation hooks:
 
+### Patch extension guidelines
 * **Input validation**: An External Patch Extension must always validate its input, i.e. it must validate that
   all variables exist, have the right type and it must validate the kind and apiVersion of the templates which
   should be patched.
@@ -70,6 +166,14 @@ This section outlines considerations specific to Topology Mutation hooks:
 * **Error messages**: For a given request (a set of templates and variables) an External Patch Extension must
   always return the same error message. Otherwise the system might became unstable due to controllers being overloaded
   by continuous changes to Kubernetes resources as these messages are reported as conditions. See [error messages](implement-extensions.md#error-messages).
+
+### Variable discovery guidelines
+* **Unique variable names**: When using external variable discovery, care should be taken to ensure that variable names are unique.
+  If the names are not unique the ClusterClass controller will attempt to deduplicate variables by comparing their definition. If this
+  is not possible the variables will be namespaced and must be referenced by their namespace when defined in a Cluster.
+* **Avoid updating variable definitions**: When using external variables updating the definitions of variables in use by existing Clusters
+  can cause reconciliation to fail where existing variable values are no longer valid, or where changing the definitions results in namespacing of
+  variables which were previously not namespaced.
 
 ## Definitions
 
@@ -191,6 +295,97 @@ function openSwaggerUI() {
   window.open("https://editor.swagger.io/?url=" + schemaURL)
 }
 </script>
+
+### DiscoverVariables
+
+A DiscoverVariables call returns definitions for one or more variables. This variable definition is the same as that used for inline variables.
+
+Example variable definition:
+
+```yaml
+  - name: etcdImageTag # name of the variable
+    required: true # whether the variable must be defined for Clusters.
+    schema:
+      openAPIV3Schema: 
+        type: string 
+        default: "3.5.3-0" # variable value which is defaulted during reconciliation if not defined elsewhere.
+        example: "3.5.3-0" # example for user guidance.
+        description: "etcdImageTag sets the tag for the etcd image." #description of variable use.
+        # Additional fields from clusterv1.JSONSchemaProps
+```
+
+#### Example Request:
+
+* The request is a simple request which contains the name and namespace of the ClusterClass it is called for.
+TODO: Should this send the full ClusterClass?
+
+```yaml
+apiVersion: hooks.runtime.cluster.x-k8s.io/v1alpha1
+kind: DiscoverVariablesRequest
+clusterClass:
+- name: <clusterClass-name>
+  namespace: <clusterClass-namespace>
+```
+
+#### Example Response:
+
+```yaml
+apiVersion: hooks.runtime.cluster.x-k8s.io/v1alpha1
+kind: DiscoverVariablesResponse
+status: Success # or Failure
+variables:
+  - name: etcdImageTag 
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: "3.5.3-0" 
+        example: "3.5.3-0"
+        description: "etcdImageTag sets the tag for the etcd image."
+  - name: preLoadImages
+    required: false
+    schema:
+      openAPIV3Schema:
+        default: []
+        type: array
+        items:
+          type: string
+        description: "preLoadImages sets the images for the docker machines to preload."
+  - name: podSecurityStandard
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          enabled:
+            type: boolean
+            default: true
+            description: "enabled enables the patches to enable Pod Security Standard via AdmissionConfiguration."
+          enforce:
+            type: string
+            default: "baseline"
+            description: "enforce sets the level for the enforce PodSecurityConfiguration mode. One of privileged, baseline, restricted."
+          audit:
+            type: string
+            default: "restricted"
+            description: "audit sets the level for the audit PodSecurityConfiguration mode. One of privileged, baseline, restricted."
+          warn:
+            type: string
+            default: "restricted"
+            description: "warn sets the level for the warn PodSecurityConfiguration mode. One of privileged, baseline, restricted."
+...
+```
+
+For additional details, you can see the full schema in <button onclick="openSwaggerUI()">Swagger UI</button>.
+TODO: Add openAPI definition to the SwaggerUI
+<script>
+// openSwaggerUI calculates the absolute URL of the RuntimeSDK YAML file and opens Swagger UI.
+function openSwaggerUI() {
+  var schemaURL = new URL("runtime-sdk-openapi.yaml", document.baseURI).href
+  window.open("https://editor.swagger.io/?url=" + schemaURL)
+}
+</script>
+
 
 ## Dealing with Cluster API upgrades with apiVersion bumps
 
