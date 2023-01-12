@@ -3,11 +3,12 @@ title: Topology Mutation Hook
 authors:
   - "@sbueringer"
   - "@fabriziopandini"
+  - "@killianmuldoon"
+
 reviewers:
   - "@CecileRobertMichon"
   - "@enxebre"
   - "@vincepri"
-  - "@killianmuldoon"
   - "@ykakarap"
 creation-date: 2022-03-30
 last-updated: 2022-03-30
@@ -61,12 +62,12 @@ Refer to the [Cluster API Book Glossary](https://cluster-api.sigs.k8s.io/referen
 - **Topology Mutation Hook**: is a hook defined in this proposal that allows users to plug in an external component that generates patches.
 - **External patch extension**: is an external component that generates patches.
 - **Inline variables**: are variables defined inline in a ClusterClass.
-- **External variables**: are varialbes defined by an external component.
+- **External variables**: are variables defined by an external component.
 - **Variable Discovery Hook**: is a hook defined in this proposal that allows an external component to supply variable definitions.
 
 ## Summary
 
-This proposal introduces the Topology Mutation Hook, which makes it possible to mutate objects of the Cluster topology by generating patches and associated variables externally. The patches and associated variables are applied to templates defined in a ClusterClass.
+This proposal introduces the Topology Mutation Hook, which makes it possible to mutate objects of the Cluster topology by generating patches externally. The patches are applied to templates defined in a ClusterClass.
 
 ## Motivation
 
@@ -80,13 +81,13 @@ The current solution to make ClusterClasses flexible is to use inline patches ba
 * JSON patch syntax might be unfamiliar to many users
 * JSON patch has known limitations, e.g. for array modifications (as it is not a full programming language)
 
-This proposal overcomes these limitations by introducing the Topology Mutation Hook, which makes it possible to mutate objects of the Cluster topology by providing externally generated patches and associated variables to be applied to templates defined in a ClusterClass.
+This proposal overcomes these limitations by introducing the Topology Mutation Hook, which makes it possible to mutate objects of the Cluster topology by providing externally generated patches to be applied to templates defined in a ClusterClass.
 
-The main idea behind Topology Mutation Hook is to move the complexity that is currently encoded in YAML to a separate component where the user can leverage the full power of a programming language. This is achieved by leveraging the Runtime SDK and implementing a new Runtime Hook, the Topology Mutation Hook, that will allow users to create Runtime Extensions to provide externally generated patches and associated variables (hereafter referred to as External Patch Extensions).
+The main idea behind Topology Mutation Hook is to move the complexity that is currently encoded in YAML to a separate component where the user can leverage the full power of a programming language. This is achieved by leveraging the Runtime SDK and implementing a new Runtime Hook, the Topology Mutation Hook, that will allow users to create Runtime Extensions to provide externally generated patches (hereafter referred to as External Patch Extensions).
 
 ### Goals
 
-* Define the OpenAPI specification of the Topology Mutation Hook and Variable Discovery Hook
+* Define the OpenAPI specification of the Topology Mutation Hook
 * Document when the corresponding External Patch Extensions are called
 * Provide guidelines for developer implementing an External Patch Extension
 * Define how to configure which External Patch Extensions apply to a ClusterClass
@@ -141,7 +142,7 @@ Once the extension is registered the discovery hook is called and the Extension 
 
 ### ClusterClass author guide
 
-A ClusterClass author can use an External Patch Extension by referencing it in a ClusterClass and adding the corresponding variable definitions, or relying on variable definitions supplied by a Variable Discovery Hook.
+A ClusterClass author can use an External Patch Extension by referencing it in a ClusterClass.
 
 A ClusterClass can have external patches, inline patches or both. The patches will then be applied in the order in which they are defined. The extension fields of the external patch must match the unique name of RuntimeExtensions assigned during discovery.
 
@@ -156,6 +157,7 @@ spec:
   - name: external-patch-1
     external:
       generateExtension: "http-proxy.my-awesome-patch"
+      discoverVariablesExtension: "variables.my-awesome-patch"
       validateExtension: "http-proxy-validate.my-awesome-patch"
   # inline patch
   - name: region
@@ -163,7 +165,10 @@ spec:
     ...
 ```
 
-If the External Patch Extension requires variable definitions, they have to be added to either to ClusterClass.spec.variables or defined and supplied using a Variable Discovery Hook. It is up to the External Patch Extension developer to document them including their OpenAPI schema.
+If the External Patch Extension requires variable definitions they must be defined and supplied using a Variable Discovery Hook. It is up to the External Patch Extension developer to define the variables, including their OpenAPI schema.
+
+Note: In a previous version of this proposal variables defined inline in the ClusterClass `.spec` could be used in external Patches.
+With the introduction of Variable Discovery variables used in an external patch must come from an associated DiscoverVariables hook.
 
 ### Developer guide
 
@@ -223,11 +228,12 @@ Mitigations:
 * Cluster operators can set a timeout on the RuntimeExtensionConfiguration to ensure Cluster topology reconciliation for all Clusters is not slowed down by one slow External Patch Extension. This only helps if the slow External Patch Extension is not used for all Clusters.
 
 #### Clashing external variable definitions
-Variable definitions supplied externally by an External Patch Extension though a Variable Discovery Hook can change when the definition in the External Patch Extension change. This can lead to a clash where variables that previously had the same name and definition no longer have the same definition.
+Variable definitions supplied externally by an External Patch Extension though a Variable Discovery Hook can change when the definition in the External Patch Extension changes. This can lead to a clash where variables that previously had the same name and definition no longer have the same definition.
 
 Mitigations:
 * Variable Discovery Hooks allow addressing variables using namespacing, where the variable name is prefixed by the name of the External Patch Extension. 
-TODO: What are the user mitigations here?
+* ClusterClass authors should pro-actively test any changes to ClusterClasses and associated Runtime Extensions to avoid clashing variable definitions.
+* External Patch extension authors should extensively document their patches, variables and usage.
 
 ## Alternatives
 

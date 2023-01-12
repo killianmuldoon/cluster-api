@@ -38,9 +38,9 @@ External patches have the following advantages:
 * External patches can use external data (e.g. from cloud APIs) during patch generation.
 * External patches can be easily reused across ClusterClasses.
 
-## External variables
+## External variable definitions
 The DiscoverVariables hook can be used to supply variable definitions for use in external patches. These variable definitions are added to
-any applicable ClusterClasses. Clusters using the ClusterClass can then set values for those variables.
+the status of any applicable ClusterClasses. Clusters using the ClusterClass can then set values for those variables.
 
 ### External variable discovery in the ClusterClass
 External variable definitions are discovered by calling the DiscoverVariables runtime hook. This hook is called from the ClusterClass reconciler.
@@ -53,6 +53,15 @@ kind: ClusterClass
 spec:
     # Inline variable definitions
     variables:
+    # This variable is unique and can be accessed globally.
+    - name: no-proxy
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: "internal.com"
+          example: "internal.com"
+          description: "comma-separated list of machine or domain names excluded from using the proxy."
+    # This variable is also defined by an external DiscoverVariables hook.
     - name: http-proxy
       schema:
         openAPIV3Schema:
@@ -66,53 +75,55 @@ spec:
       external:
           generateExtension: generate-patches.k8s-upgrade-with-runtimesdk
           validateExtension: validate-topology.k8s-upgrade-with-runtimesdk
-          ## Explicitly call variable discovery for this patch.
-          variableDiscovery: variable-discovery.k8s-upgrade-with-runtimesdk
+          ## Call variable discovery for this patch.
+          discoverVariablesExtension: discover-variables.k8s-upgrade-with-runtimesdk
 status:
     # observedGeneration is used to check that the current version of the ClusterClass is the same as that when the Status was previously written.
     # if metadata.generation isn't the same as observedGeneration Cluster using the ClusterClass should not reconcile.
     observedGeneration: xx
-    # variables contains a list of all variable definitions, both inline and external, that belong to the ClusterClass.
-    variables: 
-        - name: http-proxy
-          schema:
-            openAPIV3Schema:
-             type: string
-             # default is different so this variable does not match the inline definition.
-             default: "proxy.example3.com"
-             example: "proxy.example.com"
-             description: "proxy for http calls."
-          # namespace is added as this variable's schema isn't equivalent to the inline definition.
-          namespace: lbImageRepository
-          # A variable can have multiple origins (altenate name /sources/??)
-          # TODO: What purpose does this serve?
-         # origins: 
-         #  VariableDiscovery:
-         #  - patch: lbImageRepository # not sure if to use this or variableDiscovery << to list
-        - name: http-proxy
-          schema:
-          openAPIV3Schema:
-            type: string
-            default: "proxy.example.com"
-            example: "proxy.example.com"
-            description: "proxy for http calls."
-          namespace: inline
+    # variables contains a list of all variable definitions, both inline and from external patches, that belong to the ClusterClass.
+    variables:
+      - name: no-proxy
+        definitions:
+          - namespace: inline
+            required: true
+            schema:
+              openAPIV3Schema:
+                type: string
+                default: "internal.com"
+                example: "internal.com"
+                description: "comma-separated list of machine or domain names excluded from using the proxy."
+      - name: http-proxy
+        definitions:
+          - namespace: inline
+            schema:
+              openAPIV3Schema:
+                type: string
+                default: "proxy.example.com"
+                example: "proxy.example.com"
+                description: "proxy for http calls."
+          - namespace: lbImageName
+            schema:
+              openAPIV3Schema:
+                type: string
+                default: "different.example.com"
+                example: "different.example.com"
+                description: "proxy for http calls."
 ```
 
 ### Variable namespacing
-Variable definitions can be inline in the ClusterClass or from any number of external DiscoverVariables hooks.
-If all variables that share a name have equivalent schemas the variables are considered to be in the global namespace.
-Note: This is always the case if there is only one variable with a particular name.
-The CAPI components will consider variable definitions to be equivalent when they share a name and `openAPIV3Schema` fields
-excluding `description` and `example` are exactly equal. (TODO: Clarify this.)
+Variable definitions can be inline in the ClusterClass or from any number of external DiscoverVariables hooks. The source 
+of a variable definition is recorded in the `namespaces` field in ClusterClass `.status.variables`.
+Variables that are defined by an external DiscoverVariables hook will have the name of the patch they are associated with as their namespace.
+Variables that are defined in the ClusterClass `.spec.variables` will have the namespace `inline`.
+Note: `inline` is a reserved namespace. It can not be used as the name of an external patch to avoid conflicts.
 
-If two or more variables which share a name do not have equivalent schemas, the variables will be namespaced. This means they will
-appear namespaced in the ClusterClass `.status.variables` and setting values in the Cluster `.topology.spec.variables` will also require setting a namespace.
-The namespace on a variable will depend on its source (TODO: RUNTIME_EXTENSION name or patch name?)
-Note: When namespaced inline variables can be set without a namespace as they are always in the global namespace.
+If all variables that share a name have equivalent schemas the variables are considered `global` . `global` variables can
+be set without providing a namespace - [see below](#setting-values-for-variables-in-the-cluster). The CAPI components will
+consider variable definitions to be equivalent when they share a name and their schema is exactly equal.
 
 ### Setting values for variables in the Cluster
-Setting variables using external variables requires attention to be paid to variable namespacing, as exposed in the ClusterClass status. 
+Setting variables that are defined with external variable definitions requires attention to be paid to variable namespacing, as exposed in the ClusterClass status. 
 Variable values are set in Cluster `.spec.topology.variables`.
 
 ```yaml
@@ -122,12 +133,14 @@ kind: Cluster
 spec:
     topology:
         variables:
-        - name: http_proxy
-          # If not defined or empty this variable is in the global namepsace.
-          # is a list 
-          namespaces: 
-            - lbImageRepository
-            - inline
+        - name: no-proxy
+          value: "internal.domain.com"
+          # namespace is not needed as this variable is in the global namespace.
+        - name: http-proxy
+          namespace: inline
+          value: "proxy.example2.com"
+        - name: http-proxy
+          namespace: lbImageRepository
           value: "proxy.example2.com"
 ```
 ## Using one or multiple external patch extensions
@@ -145,7 +158,7 @@ Some considerations:
 ## Guidelines
 
 For general Runtime Extension developer guidelines please refer to the guidelines in [Implementing Runtime Extensions](implement-extensions.md#guidelines).
-This section outlines considerations specific to Topology Mutation hooks:
+This section outlines considerations specific to Topology Mutation hooks.
 
 ### Patch extension guidelines
 * **Input validation**: An External Patch Extension must always validate its input, i.e. it must validate that
@@ -164,16 +177,18 @@ This section outlines considerations specific to Topology Mutation hooks:
 * **Avoid Dependencies**: An External Patch Extension must be independent of other External Patch Extensions. However
   if dependencies cannot be avoided, it is possible to control the order in which patches are executed via the ClusterClass.
 * **Error messages**: For a given request (a set of templates and variables) an External Patch Extension must
-  always return the same error message. Otherwise the system might became unstable due to controllers being overloaded
+  always return the same error message. Otherwise the system might become unstable due to controllers being overloaded
   by continuous changes to Kubernetes resources as these messages are reported as conditions. See [error messages](implement-extensions.md#error-messages).
 
 ### Variable discovery guidelines
-* **Unique variable names**: When using external variable discovery, care should be taken to ensure that variable names are unique.
-  If the names are not unique the ClusterClass controller will attempt to deduplicate variables by comparing their definition. If this
-  is not possible the variables will be namespaced and must be referenced by their namespace when defined in a Cluster.
-* **Avoid updating variable definitions**: When using external variables updating the definitions of variables in use by existing Clusters
-  can cause reconciliation to fail where existing variable values are no longer valid, or where changing the definitions results in namespacing of
-  variables which were previously not namespaced.
+* **Distinctive variable names**: Names should be carefully chosen, and if possible generic names should be avoided. 
+Using a generic name could lead to conflicts if the variables defined for this patch are used in combination with other 
+patches providing variables with the same name.
+* **Avoid breaking changes to variable definitions**: Changing a variable definition can lead to problems on existing 
+clusters because reconciliation will stop if variable values do not match the updated definition. When more than one variable 
+with the same name is defined, changes to variable definitions can require explicit values for for each patch. 
+Updates to the variable definition should be carefully evaluated, and very well documented in extension release notes, 
+so ClusterClass authors can evaluate impacts of changes before performing an upgrade.
 
 ## Definitions
 
@@ -298,33 +313,16 @@ function openSwaggerUI() {
 
 ### DiscoverVariables
 
-A DiscoverVariables call returns definitions for one or more variables. This variable definition is the same as that used for inline variables.
-
-Example variable definition:
-
-```yaml
-  - name: etcdImageTag # name of the variable
-    required: true # whether the variable must be defined for Clusters.
-    schema:
-      openAPIV3Schema: 
-        type: string 
-        default: "3.5.3-0" # variable value which is defaulted during reconciliation if not defined elsewhere.
-        example: "3.5.3-0" # example for user guidance.
-        description: "etcdImageTag sets the tag for the etcd image." #description of variable use.
-        # Additional fields from clusterv1.JSONSchemaProps
-```
+A DiscoverVariables call returns definitions for one or more variables.
 
 #### Example Request:
 
 * The request is a simple request which contains the name and namespace of the ClusterClass it is called for.
-TODO: Should this send the full ClusterClass?
 
 ```yaml
 apiVersion: hooks.runtime.cluster.x-k8s.io/v1alpha1
 kind: DiscoverVariablesRequest
-clusterClass:
-- name: <clusterClass-name>
-  namespace: <clusterClass-namespace>
+settings: <Runtime Extension settings>
 ```
 
 #### Example Response:
@@ -333,6 +331,7 @@ clusterClass:
 apiVersion: hooks.runtime.cluster.x-k8s.io/v1alpha1
 kind: DiscoverVariablesResponse
 status: Success # or Failure
+message: ""
 variables:
   - name: etcdImageTag 
     required: true
