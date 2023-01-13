@@ -132,17 +132,21 @@ kind: Cluster
 #metadata 
 spec:
     topology:
-        variables:
+      variables:
+        # namespace is not needed as this variable is global.
         - name: no-proxy
           value: "internal.domain.com"
-          # namespace is not needed as this variable is in the global namespace.
+        # namespaced variables require values for each individual schema.
         - name: http-proxy
-          namespace: inline
-          value: "proxy.example2.com"
+          namespaces: patch1
+          value: http://proxy.example2.com:1234
         - name: http-proxy
-          namespace: lbImageRepository
-          value: "proxy.example2.com"
+          namespaces: patch2
+          value:
+            host: proxy.example2.com
+            port: 1234
 ```
+
 ## Using one or multiple external patch extensions
 
 Some considerations:
