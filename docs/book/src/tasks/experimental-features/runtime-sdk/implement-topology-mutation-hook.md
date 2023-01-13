@@ -55,6 +55,7 @@ spec:
     variables:
     # This variable is unique and can be accessed globally.
     - name: no-proxy
+      required: true
       schema:
         openAPIV3Schema:
           type: string
@@ -113,7 +114,7 @@ status:
 
 ### Variable namespacing
 Variable definitions can be inline in the ClusterClass or from any number of external DiscoverVariables hooks. The source 
-of a variable definition is recorded in the `namespaces` field in ClusterClass `.status.variables`.
+of a variable definition is recorded in the `namespace` field in ClusterClass `.status.variables`.
 Variables that are defined by an external DiscoverVariables hook will have the name of the patch they are associated with as their namespace.
 Variables that are defined in the ClusterClass `.spec.variables` will have the namespace `inline`.
 Note: `inline` is a reserved namespace. It can not be used as the name of an external patch to avoid conflicts.
@@ -138,10 +139,10 @@ spec:
           value: "internal.domain.com"
         # namespaced variables require values for each individual schema.
         - name: http-proxy
-          namespaces: patch1
+          namespace: patch1
           value: http://proxy.example2.com:1234
         - name: http-proxy
-          namespaces: patch2
+          namespace: patch2
           value:
             host: proxy.example2.com
             port: 1234
@@ -321,7 +322,7 @@ A DiscoverVariables call returns definitions for one or more variables.
 
 #### Example Request:
 
-* The request is a simple request which contains the name and namespace of the ClusterClass it is called for.
+* The request is a simple call to the Runtime hook.
 
 ```yaml
 apiVersion: hooks.runtime.cluster.x-k8s.io/v1alpha1
