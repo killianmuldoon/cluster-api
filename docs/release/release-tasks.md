@@ -25,6 +25,7 @@ This document details the responsibilities and tasks for each role in the releas
       - [\[Track\] Bump dependencies](#track-bump-dependencies)
       - [Create a release branch](#create-a-release-branch)
       - [\[Continuously\] Maintain the GitHub release milestone](#continuously-maintain-the-github-release-milestone)
+      - [\[Continuously\] Bump the Go version](#continuously-bump-the-go-version)
       - [\[Repeatedly\] Cut a release](#repeatedly-cut-a-release)
       - [\[Optional\] \[Track\] Bump the Cluster API apiVersion](#optional-track-bump-the-cluster-api-apiversion)
       - [\[Optional\] \[Track\] Bump the Kubernetes version](#optional-track-bump-the-kubernetes-version)
@@ -111,7 +112,7 @@ This comes down to changing occurrences of the old version to the new version, e
    5. Modify the test specs in `test/e2e/clusterctl_upgrade_test.go` (according to the versions we want to test described above).
       Please note that `InitWithKubernetesVersion` should be the highest mgmt cluster version supported by the respective Cluster API version. 
 2. Update `create-local-repository.py` and `tools/tilt-prepare/main.go`: `v1.3.99` => `v1.4.99`.
-3. Update `.github/workflows/scan.yml` to setup Trivy scanning for the currently supported branches.
+3. Update `.github/workflows/scan.yml` - to setup Trivy scanning - and `.github/workflows/lint-docs-weekly.yml` - to setup link checking in the CAPI book - for the currently supported branches.
 4. Make sure all tests are green (also run `pull-cluster-api-e2e-full-main` and `pull-cluster-api-e2e-workload-upgrade-1-23-latest-main`).
 
 Prior art: https://github.com/kubernetes-sigs/cluster-api/pull/6834/files
@@ -168,6 +169,17 @@ This can be done by:
 1. Regularly checking in with folks implementing an issue in the milestone.
 2. If nobody is working on an issue in the milestone, drop it from the milestone.
 3. Ensuring we have a plan to get `release-blocking` issues implemented in time.
+
+#### [Continuously] Bump the Go version
+
+The goal of this task is to ensure we are always using the latest Go version for our releases.
+
+1. Keep track of new Go versions
+2. Bump the Go version in supported branches if necessary
+   <br>Prior art: [Bump to Go 1.19.5](https://github.com/kubernetes-sigs/cluster-api/pull/7981)
+
+Note: If the Go minor version of one of our supported branches goes out of supported, we should consider bumping 
+to a newer Go minor version according to our [backport policy](./../../CONTRIBUTING.md#backporting-a-patch).
 
 #### [Repeatedly] Cut a release
 

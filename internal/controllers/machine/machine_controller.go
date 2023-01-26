@@ -91,6 +91,11 @@ type Reconciler struct {
 	// nodeDeletionRetryTimeout determines how long the controller will retry deleting a node
 	// during a single reconciliation.
 	nodeDeletionRetryTimeout time.Duration
+
+	// disableNodeLabelSync should only be used for tests. This is used to skip the parts of
+	// the controller that need SSA as the current test setup does not support SSA.
+	// This flag should be dropped after the tests are migrated to envtest.
+	disableNodeLabelSync bool
 }
 
 func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
@@ -267,10 +272,6 @@ func patchMachine(ctx context.Context, patchHelper *patch.Helper, machine *clust
 }
 
 func (r *Reconciler) reconcile(ctx context.Context, cluster *clusterv1.Cluster, m *clusterv1.Machine) (ctrl.Result, error) {
-	if err := r.watchClusterNodes(ctx, cluster); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	// If the machine is a stand-alone one, meaning not originated from a MachineDeployment, then set it as directly
 	// owned by the Cluster (if not already present).
 	if r.shouldAdopt(m) {
