@@ -458,7 +458,17 @@ func DefaultVariables(cluster *clusterv1.Cluster, clusterClass *clusterv1.Cluste
 	if clusterClass == nil {
 		return field.ErrorList{field.InternalError(field.NewPath(""), errors.New("ClusterClass can not be nil"))}
 	}
-	defaultedVariables, errs := variables.DefaultClusterVariables(cluster.Spec.Topology.Variables, clusterClass.Spec.Variables,
+	var ccVars []clusterv1.ClusterClassVariable
+	for _, v := range clusterClass.Status.Variables {
+		for _, d := range v.Definitions {
+			ccVars = append(ccVars, clusterv1.ClusterClassVariable{
+				Required: d.Required,
+				Schema:   d.Schema,
+				Name:     v.Name,
+			})
+		}
+	}
+	defaultedVariables, errs := variables.DefaultClusterVariables(cluster.Spec.Topology.Variables, ccVars,
 		field.NewPath("spec", "topology", "variables"))
 	if len(errs) > 0 {
 		allErrs = append(allErrs, errs...)
@@ -472,7 +482,7 @@ func DefaultVariables(cluster *clusterv1.Cluster, clusterClass *clusterv1.Cluste
 			if md.Variables == nil || len(md.Variables.Overrides) == 0 {
 				continue
 			}
-			defaultedVariables, errs := variables.DefaultMachineDeploymentVariables(md.Variables.Overrides, clusterClass.Spec.Variables,
+			defaultedVariables, errs := variables.DefaultMachineDeploymentVariables(md.Variables.Overrides, ccVars,
 				field.NewPath("spec", "topology", "workers", "machineDeployments").Index(i).Child("variables", "overrides"))
 			if len(errs) > 0 {
 				allErrs = append(allErrs, errs...)
@@ -495,12 +505,22 @@ func ValidateClusterForClusterClass(cluster *clusterv1.Cluster, clusterClass *cl
 	}
 	allErrs = append(allErrs, check.MachineDeploymentTopologiesAreValidAndDefinedInClusterClass(cluster, clusterClass)...)
 
-	// Check if the variables defined in the ClusterClass are valid.
-	allErrs = append(allErrs, variables.ValidateClusterVariables(cluster.Spec.Topology.Variables, clusterClass.Spec.Variables,
-		fldPath.Child("variables"))...)
-
 	// validate the MachineHealthChecks defined in the cluster topology
 	allErrs = append(allErrs, validateMachineHealthChecks(cluster, clusterClass)...)
+
+	var ccVars []clusterv1.ClusterClassVariable
+	for _, v := range clusterClass.Status.Variables {
+		for _, d := range v.Definitions {
+			ccVars = append(ccVars, clusterv1.ClusterClassVariable{
+				Required: d.Required,
+				Schema:   d.Schema,
+				Name:     v.Name,
+			})
+		}
+	}
+	// Check if the variables defined in the ClusterClass are valid.
+	allErrs = append(allErrs, variables.ValidateClusterVariables(cluster.Spec.Topology.Variables, ccVars,
+		fldPath.Child("variables"))...)
 
 	if cluster.Spec.Topology.Workers != nil {
 		for i, md := range cluster.Spec.Topology.Workers.MachineDeployments {
@@ -508,7 +528,7 @@ func ValidateClusterForClusterClass(cluster *clusterv1.Cluster, clusterClass *cl
 			if md.Variables == nil || len(md.Variables.Overrides) == 0 {
 				continue
 			}
-			allErrs = append(allErrs, variables.ValidateMachineDeploymentVariables(md.Variables.Overrides, clusterClass.Spec.Variables,
+			allErrs = append(allErrs, variables.ValidateMachineDeploymentVariables(md.Variables.Overrides, ccVars,
 				fldPath.Child("workers", "machineDeployments").Index(i).Child("variables", "overrides"))...)
 		}
 	}
