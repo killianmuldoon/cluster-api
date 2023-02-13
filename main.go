@@ -362,6 +362,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 		if err := (&controllers.ClusterClassReconciler{
 			Client:                    mgr.GetClient(),
 			APIReader:                 mgr.GetAPIReader(),
+			RuntimeClient:             runtimeClient,
 			UnstructuredCachingClient: unstructuredCachingClient,
 			WatchFilterValue:          watchFilterValue,
 		}).SetupWithManager(ctx, mgr, concurrency(clusterClassConcurrency)); err != nil {
@@ -449,6 +450,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	if feature.Gates.Enabled(feature.MachinePool) {
 		if err := (&expcontrollers.MachinePoolReconciler{
 			Client:           mgr.GetClient(),
+			APIReader:        mgr.GetAPIReader(),
 			WatchFilterValue: watchFilterValue,
 		}).SetupWithManager(ctx, mgr, concurrency(machinePoolConcurrency)); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "MachinePool")

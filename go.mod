@@ -6,7 +6,7 @@ require (
 	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/coredns/corefile-migration v1.0.18
+	github.com/coredns/corefile-migration v1.0.19
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/distribution v2.8.1+incompatible
 	github.com/drone/envsubst/v2 v2.0.0-20210730161058-179042472c46
@@ -20,8 +20,8 @@ require (
 	github.com/google/go-github/v48 v48.2.0
 	github.com/google/gofuzz v1.2.0
 	github.com/mattn/go-runewidth v0.0.14 // indirect
-	github.com/onsi/ginkgo/v2 v2.7.0
-	github.com/onsi/gomega v1.25.0
+	github.com/onsi/ginkgo/v2 v2.8.0
+	github.com/onsi/gomega v1.26.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
@@ -32,17 +32,17 @@ require (
 	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783
 	google.golang.org/grpc v1.52.0
-	k8s.io/api v0.26.0
-	k8s.io/apiextensions-apiserver v0.26.0
-	k8s.io/apimachinery v0.26.0
-	k8s.io/apiserver v0.26.0
-	k8s.io/client-go v0.26.0
+	k8s.io/api v0.26.1
+	k8s.io/apiextensions-apiserver v0.26.1
+	k8s.io/apimachinery v0.26.1
+	k8s.io/apiserver v0.26.1
+	k8s.io/client-go v0.26.1
 	k8s.io/cluster-bootstrap v0.25.0
-	k8s.io/component-base v0.26.0
+	k8s.io/component-base v0.26.1
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/kubectl v0.25.0
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
-	sigs.k8s.io/controller-runtime v0.14.1
+	sigs.k8s.io/controller-runtime v0.14.2
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -73,7 +73,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/btree v1.0.1 // indirect
-	github.com/google/cel-go v0.12.5 // indirect
+	github.com/google/cel-go v0.12.6 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.3.0 // indirect

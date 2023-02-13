@@ -169,7 +169,7 @@ func (t *ClusterCacheTracker) GetRESTConfig(ctc context.Context, cluster client.
 type clusterAccessor struct {
 	cache   *stoppableCache
 	client  client.Client
-	watches sets.String
+	watches sets.Set[string]
 	config  *rest.Config
 }
 
@@ -338,7 +338,7 @@ func (t *ClusterCacheTracker) newClusterAccessor(ctx context.Context, cluster cl
 		cache:   cache,
 		config:  config,
 		client:  delegatingClient,
-		watches: sets.NewString(),
+		watches: sets.Set[string]{},
 	}, nil
 }
 
@@ -445,7 +445,7 @@ func (t *ClusterCacheTracker) Watch(ctx context.Context, input WatchInput) error
 	// We have to lock the cluster, so that the watch is not created multiple times in parallel.
 	ok := t.clusterLock.TryLock(input.Cluster)
 	if !ok {
-		return errors.Wrapf(ErrClusterLocked, "failed to add %s watch on cluster %s: failed to get lock for cluster", input.Kind, klog.KRef(input.Cluster.Namespace, input.Cluster.Name))
+		return errors.Wrapf(ErrClusterLocked, "failed to add %T watch on cluster %s: failed to get lock for cluster", input.Kind, klog.KRef(input.Cluster.Namespace, input.Cluster.Name))
 	}
 	defer t.clusterLock.Unlock(input.Cluster)
 

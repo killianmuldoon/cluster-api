@@ -111,7 +111,7 @@ SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER))
 SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
 
-CONTROLLER_GEN_VER := v0.11.1
+CONTROLLER_GEN_VER := v0.11.3
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 CONTROLLER_GEN_PKG := sigs.k8s.io/controller-tools/cmd/controller-gen
@@ -472,7 +472,7 @@ generate-modules: ## Run go mod tidy to ensure modules are up to date
 	cd $(TEST_DIR); go mod tidy
 
 .PHONY: generate-e2e-templates
-generate-e2e-templates: $(KUSTOMIZE) $(addprefix generate-e2e-templates-, v0.3 v0.4 v1.2 v1.3 main) ## Generate cluster templates for all versions
+generate-e2e-templates: $(KUSTOMIZE) $(addprefix generate-e2e-templates-, v0.3 v0.4 v1.0 v1.2 v1.3 main) ## Generate cluster templates for all versions
 
 DOCKER_TEMPLATES := test/e2e/data/infrastructure-docker
 
@@ -483,6 +483,10 @@ generate-e2e-templates-v0.3: $(KUSTOMIZE)
 .PHONY: generate-e2e-templates-v0.4
 generate-e2e-templates-v0.4: $(KUSTOMIZE)
 	$(KUSTOMIZE) build $(DOCKER_TEMPLATES)/v0.4/cluster-template --load-restrictor LoadRestrictionsNone > $(DOCKER_TEMPLATES)/v0.4/cluster-template.yaml
+
+.PHONY: generate-e2e-templates-v1.0
+generate-e2e-templates-v1.0: $(KUSTOMIZE)
+	$(KUSTOMIZE) build $(DOCKER_TEMPLATES)/v1.0/cluster-template --load-restrictor LoadRestrictionsNone > $(DOCKER_TEMPLATES)/v1.0/cluster-template.yaml
 
 .PHONY: generate-e2e-templates-v1.2
 generate-e2e-templates-v1.2: $(KUSTOMIZE)
@@ -1204,7 +1208,16 @@ $(YQ):
 $(GOLANGCI_LINT): .github/workflows/golangci-lint.yml # Download golangci-lint using hack script into tools folder.
 	hack/ensure-golangci-lint.sh \
 		-b $(TOOLS_BIN_DIR) \
-		$(shell cat .github/workflows/golangci-lint.yml | grep [[:space:]]version | sed 's/.*version: //')
+		$(shell cat .github/workflows/golangci-lint.yml | grep [[:space:]]version: | sed 's/.*version: //')
 
 $(GINKGO): # Build ginkgo from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(GINKGO_PKG) $(GINKGO_BIN) $(GINGKO_VER)
+
+## --------------------------------------
+## Helpers
+## --------------------------------------
+
+##@ helpers:
+
+go-version: ## Print the go version we use to compile our binaries and images
+	@echo $(GO_VERSION)

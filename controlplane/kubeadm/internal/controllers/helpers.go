@@ -148,7 +148,7 @@ func (r *KubeadmControlPlaneReconciler) reconcileExternalReference(ctx context.C
 		return nil
 	}
 
-	if err := utilconversion.UpdateReferenceAPIContract(ctx, r.Client, r.APIReader, ref); err != nil {
+	if err := utilconversion.UpdateReferenceAPIContract(ctx, r.Client, ref); err != nil {
 		return err
 	}
 
@@ -307,12 +307,11 @@ func (r *KubeadmControlPlaneReconciler) generateMachine(ctx context.Context, kcp
 			Bootstrap: clusterv1.Bootstrap{
 				ConfigRef: bootstrapRef,
 			},
-			FailureDomain:    failureDomain,
-			NodeDrainTimeout: kcp.Spec.MachineTemplate.NodeDrainTimeout,
+			FailureDomain:           failureDomain,
+			NodeDrainTimeout:        kcp.Spec.MachineTemplate.NodeDrainTimeout,
+			NodeDeletionTimeout:     kcp.Spec.MachineTemplate.NodeDeletionTimeout,
+			NodeVolumeDetachTimeout: kcp.Spec.MachineTemplate.NodeVolumeDetachTimeout,
 		},
-	}
-	if kcp.Spec.MachineTemplate.NodeDeletionTimeout != nil {
-		machine.Spec.NodeDeletionTimeout = kcp.Spec.MachineTemplate.NodeDeletionTimeout
 	}
 
 	// Machine's bootstrap config may be missing ClusterConfiguration if it is not the first machine in the control plane.

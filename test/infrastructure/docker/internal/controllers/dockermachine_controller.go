@@ -171,7 +171,7 @@ func (r *DockerMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Requeue if the reconcile failed because the ClusterCacheTracker was locked for
 	// the current cluster because of concurrent access.
 	if errors.Is(err, remote.ErrClusterLocked) {
-		log.V(5).Info("Requeueing because another worker has the lock on the ClusterCacheTracker")
+		log.V(5).Info("Requeuing because another worker has the lock on the ClusterCacheTracker")
 		return ctrl.Result{Requeue: true}, nil
 	}
 	return res, err
@@ -329,6 +329,17 @@ func (r *DockerMachineReconciler) reconcileNormal(ctx context.Context, cluster *
 	if err := setMachineAddress(ctx, dockerMachine, externalMachine); err != nil {
 		log.Error(err, "failed to set the machine address")
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
+	// If the Cluster is using a control plane and the control plane is not yet initialized, there is no API server
+	// to contact to get the ProviderID for the Node hosted on this machine, so return early.
+	// NOTE: We are using RequeueAfter with a short interval in order to make test execution time more stable.
+	// NOTE: If the Cluster doesn't use a control plane, the ControlPlaneInitialized condition is only
+	// set to true after a control plane machine has a node ref. If we would requeue here in this case, the
+	// Machine will never get a node ref as ProviderID is required to set the node ref, so we would get a deadlock.
+	if cluster.Spec.ControlPlaneRef != nil &&
+		!conditions.IsTrue(cluster, clusterv1.ControlPlaneInitializedCondition) {
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 	}
 
 	// Usually a cloud provider will do this, but there is no docker-cloud provider.
