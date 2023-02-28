@@ -3,10 +3,7 @@ name: Release test
 # Note: This workflow does not build for releases. It attempts to build release binaries daily to ensure the repo
 # is in a good state.
 
-on:
-  schedule:
-    # Cron for every Thursday at 12:00 UTC.
-    - cron: "0 12 * * 4"
+on: workflow_dispatch
 
 # Remove all permissions from GITHUB_TOKEN except metadata.
 permissions: {}
