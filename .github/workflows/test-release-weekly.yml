@@ -21,7 +21,7 @@ jobs:
         with:
           ref: ${{ matrix.branch }}
       - name: Set env
-        run: echo "RELEASE_TAG=v0.0-fake" >> $GITHUB_ENV
+        run:  echo "RELEASE_TAG=${GITHUB_REF:10}" >> $GITHUB_ENV
       - name: build release binaries
         run: |
           make release
