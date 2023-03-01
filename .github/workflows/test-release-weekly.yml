@@ -22,7 +22,7 @@ jobs:
           ref: ${{ matrix.branch }}
       - name: set fake tag
         run: |
-          git tag fake-tag
+          git tag v0.0.1-fake
       - name: Set env
         run:  echo "RELEASE_TAG=fake-tag" >> $GITHUB_ENV
       - name: build release binaries
