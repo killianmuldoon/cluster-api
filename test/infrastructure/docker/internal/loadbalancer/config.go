@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,6 +36,12 @@ global
   log /dev/log local0
   log /dev/log local1 notice
   daemon
+  # limit memory usage to approximately 18 MB
+  maxconn 100000
+
+resolvers docker
+  nameserver dns 127.0.0.11:53
+
 defaults
   log global
   mode tcp
@@ -44,17 +50,21 @@ defaults
   timeout connect 5000
   timeout client 50000
   timeout server 50000
+  # allow to boot despite dns don't resolve backends
+  default-server init-addr none
+
 frontend control-plane
   bind *:{{ .ControlPlanePort }}
   {{ if .IPv6 -}}
   bind :::{{ .ControlPlanePort }};
   {{- end }}
   default_backend kube-apiservers
+
 backend kube-apiservers
   option httpchk GET /healthz
   # TODO: we should be verifying (!)
   {{range $server, $address := .BackendServers}}
-  server {{ $server }} {{ $address }} check check-ssl verify none
+  server {{ $server }} {{ $address }} check check-ssl verify none resolvers docker resolve-prefer {{ if $.IPv6 -}} ipv6 {{- else -}} ipv4 {{- end }}
   {{- end}}
 `
 
