@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -356,7 +357,9 @@ func ClusterctlUpgradeSpec(ctx context.Context, inputGetter func() ClusterctlUpg
 		Expect(workloadClusterTemplate).ToNot(BeNil(), "Failed to get the cluster template")
 
 		log.Logf("Applying the cluster template yaml to the cluster")
-		Expect(managementClusterProxy.Apply(ctx, workloadClusterTemplate)).To(Succeed())
+		Eventually(func() error {
+			return managementClusterProxy.Apply(ctx, workloadClusterTemplate)
+		}).WithTimeout(1 * time.Minute).WithPolling(1 * time.Second).Should(Succeed())
 
 		if input.PreWaitForCluster != nil {
 			By("Running PreWaitForCluster steps against the management cluster")
