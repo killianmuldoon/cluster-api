@@ -179,12 +179,12 @@ Cluster API maintains the most recent release/releases for all supported API and
 
 We are going to remove the apiVersions in upcoming releases:
 * v1.5:
-  * Kubernetes API server will stop serving the v1alpha3 apiVersion
+  * v1alpha3 apiVersion no longer served by Kubernetes API Server
 * v1.6:
-  * v1alpha3 apiVersion will be removed from the CRDs
-  * Kubernetes API server will stop serving the v1alpha4 apiVersion
+  * v1alpha3 apiVersion removed from the CRDs
+  * v1alpha4 apiVersion no longer served by Kubernetes API Server
 * v1.7
-  * v1alpha4 apiVersion will be removed from the CRDs
+  * v1alpha4 apiVersion removed from the CRDs
 For more details and latest information please see the following issue: [Removing v1alpha3 & v1alpha4 apiVersions](https://github.com/kubernetes-sigs/cluster-api/issues/8038).
 
 ## Contributing a Patch
