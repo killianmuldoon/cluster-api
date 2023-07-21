@@ -48,3 +48,20 @@ updates:
   labels:
     - "area/dependency"
     - "ok-to-test"
+
+  # Go test module
+- package-ecosystem: "gomod"
+  directory: "/hack/tools"
+  schedule:
+    interval: "daily"
+  ignore:
+    # Ignore controller-runtime as its upgraded manually.
+    - dependency-name: "sigs.k8s.io/controller-runtime"
+    # Ignore k8s and its transitives modules as they are upgraded manually
+    # together with controller-runtime.
+    - dependency-name: "k8s.io/*"
+  commit-message:
+    prefix: ":seedling:"
+  labels:
+    - "area/dependency"
+    - "ok-to-test"
