@@ -34,6 +34,7 @@ import (
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
+	"sigs.k8s.io/cluster-api/controlplane/kubeadm/internal"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/kubeconfig"
 	"sigs.k8s.io/cluster-api/util/secret"
@@ -73,11 +74,17 @@ func TestReconcileKubeconfigEmptyAPIEndpoints(t *testing.T) {
 
 	fakeClient := newFakeClient(kcp.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
-	result, err := r.reconcileKubeconfig(ctx, cluster, kcp)
+	controlPlane := &internal.ControlPlane{
+		KCP:     kcp,
+		Cluster: cluster,
+	}
+
+	result, err := r.reconcileKubeconfig(ctx, controlPlane)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(result).To(BeZero())
 
@@ -122,11 +129,17 @@ func TestReconcileKubeconfigMissingCACertificate(t *testing.T) {
 
 	fakeClient := newFakeClient(kcp.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
-	result, err := r.reconcileKubeconfig(ctx, cluster, kcp)
+	controlPlane := &internal.ControlPlane{
+		KCP:     kcp,
+		Cluster: cluster,
+	}
+
+	result, err := r.reconcileKubeconfig(ctx, controlPlane)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(result).To(Equal(ctrl.Result{RequeueAfter: dependentCertRequeueAfter}))
 
@@ -188,11 +201,17 @@ func TestReconcileKubeconfigSecretDoesNotAdoptsUserSecrets(t *testing.T) {
 
 	fakeClient := newFakeClient(kcp.DeepCopy(), existingKubeconfigSecret.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
-	result, err := r.reconcileKubeconfig(ctx, cluster, kcp)
+	controlPlane := &internal.ControlPlane{
+		KCP:     kcp,
+		Cluster: cluster,
+	}
+
+	result, err := r.reconcileKubeconfig(ctx, controlPlane)
 	g.Expect(err).To(Succeed())
 	g.Expect(result).To(BeZero())
 
@@ -248,10 +267,17 @@ func TestKubeadmControlPlaneReconciler_reconcileKubeconfig(t *testing.T) {
 
 	fakeClient := newFakeClient(kcp.DeepCopy(), existingCACertSecret.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
-	result, err := r.reconcileKubeconfig(ctx, cluster, kcp)
+
+	controlPlane := &internal.ControlPlane{
+		KCP:     kcp,
+		Cluster: cluster,
+	}
+
+	result, err := r.reconcileKubeconfig(ctx, controlPlane)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(result).To(Equal(ctrl.Result{}))
 
@@ -272,7 +298,7 @@ func TestCloneConfigsAndGenerateMachine(t *testing.T) {
 
 		t.Log("Creating the namespace")
 		ns, err := env.CreateNamespace(ctx, "test-applykubeadmconfig")
-		g.Expect(err).To(BeNil())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		return ns
 	}
@@ -334,8 +360,9 @@ func TestCloneConfigsAndGenerateMachine(t *testing.T) {
 	}
 
 	r := &KubeadmControlPlaneReconciler{
-		Client:   env,
-		recorder: record.NewFakeRecorder(32),
+		Client:              env,
+		SecretCachingClient: secretCachingClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	bootstrapSpec := &bootstrapv1.KubeadmConfigSpec{
@@ -353,7 +380,7 @@ func TestCloneConfigsAndGenerateMachine(t *testing.T) {
 		g.Expect(m.Name).To(HavePrefix(kcp.Name))
 
 		infraObj, err := external.Get(ctx, r.Client, &m.Spec.InfrastructureRef, m.Spec.InfrastructureRef.Namespace)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(infraObj.GetAnnotations()).To(HaveKeyWithValue(clusterv1.TemplateClonedFromNameAnnotation, genericInfrastructureMachineTemplate.GetName()))
 		g.Expect(infraObj.GetAnnotations()).To(HaveKeyWithValue(clusterv1.TemplateClonedFromGroupKindAnnotation, genericInfrastructureMachineTemplate.GroupVersionKind().GroupKind().String()))
 
@@ -418,8 +445,9 @@ func TestCloneConfigsAndGenerateMachineFail(t *testing.T) {
 	fakeClient := newFakeClient(cluster.DeepCopy(), kcp.DeepCopy(), genericMachineTemplate.DeepCopy())
 
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	bootstrapSpec := &bootstrapv1.KubeadmConfigSpec{
@@ -502,7 +530,7 @@ func TestKubeadmControlPlaneReconciler_computeDesiredMachine(t *testing.T) {
 			infraRef, bootstrapRef,
 			failureDomain, nil,
 		)
-		g.Expect(err).To(BeNil())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		expectedMachineSpec := clusterv1.MachineSpec{
 			ClusterName: cluster.Name,
@@ -579,7 +607,7 @@ func TestKubeadmControlPlaneReconciler_computeDesiredMachine(t *testing.T) {
 			infraRef, bootstrapRef,
 			existingMachine.Spec.FailureDomain, existingMachine,
 		)
-		g.Expect(err).To(BeNil())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		expectedMachineSpec := clusterv1.MachineSpec{
 			ClusterName: cluster.Name,
@@ -655,12 +683,13 @@ func TestKubeadmControlPlaneReconciler_generateKubeadmConfig(t *testing.T) {
 	}
 
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	got, err := r.generateKubeadmConfig(ctx, kcp, cluster, spec.DeepCopy())
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(got).NotTo(BeNil())
 	g.Expect(got.Name).To(HavePrefix(kcp.Name))
 	g.Expect(got.Namespace).To(Equal(kcp.Namespace))
@@ -762,13 +791,13 @@ func TestKubeadmControlPlaneReconciler_adoptKubeconfigSecret(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeClient := newFakeClient(kcp, tt.configSecret)
 			r := &KubeadmControlPlaneReconciler{
-				APIReader: fakeClient,
-				Client:    fakeClient,
+				Client:              fakeClient,
+				SecretCachingClient: fakeClient,
 			}
 			g.Expect(r.adoptKubeconfigSecret(ctx, tt.configSecret, kcp)).To(Succeed())
 			actualSecret := &corev1.Secret{}
-			g.Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: tt.configSecret.Namespace, Name: tt.configSecret.Namespace}, actualSecret))
-			g.Expect(tt.configSecret.GetOwnerReferences()).To(ConsistOf(tt.expectedOwnerRef))
+			g.Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: tt.configSecret.Namespace, Name: tt.configSecret.Name}, actualSecret)).To(Succeed())
+			g.Expect(actualSecret.GetOwnerReferences()).To(ConsistOf(tt.expectedOwnerRef))
 		})
 	}
 }

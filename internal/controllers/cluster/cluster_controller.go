@@ -65,8 +65,9 @@ const (
 
 // Reconciler reconciles a Cluster object.
 type Reconciler struct {
-	Client    client.Client
-	APIReader client.Reader
+	Client                    client.Client
+	UnstructuredCachingClient client.Client
+	APIReader                 client.Reader
 
 	// WatchFilterValue is the label value used to filter events prior to reconciliation.
 	WatchFilterValue string
@@ -141,15 +142,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Re
 		}
 	}()
 
-	// Add finalizer first if not exist to avoid the race condition between init and delete
-	if !controllerutil.ContainsFinalizer(cluster, clusterv1.ClusterFinalizer) {
-		controllerutil.AddFinalizer(cluster, clusterv1.ClusterFinalizer)
-		return ctrl.Result{}, nil
-	}
-
 	// Handle deletion reconciliation loop.
 	if !cluster.ObjectMeta.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, cluster)
+	}
+
+	// Add finalizer first if not set to avoid the race condition between init and delete.
+	// Note: Finalizers in general can only be added when the deletionTimestamp is not set.
+	if !controllerutil.ContainsFinalizer(cluster, clusterv1.ClusterFinalizer) {
+		controllerutil.AddFinalizer(cluster, clusterv1.ClusterFinalizer)
+		return ctrl.Result{}, nil
 	}
 
 	// Handle normal reconciliation loop.
@@ -270,7 +272,7 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, cluster *clusterv1.Clu
 	}
 
 	if cluster.Spec.ControlPlaneRef != nil {
-		obj, err := external.Get(ctx, r.Client, cluster.Spec.ControlPlaneRef, cluster.Namespace)
+		obj, err := external.Get(ctx, r.UnstructuredCachingClient, cluster.Spec.ControlPlaneRef, cluster.Namespace)
 		switch {
 		case apierrors.IsNotFound(errors.Cause(err)):
 			// All good - the control plane resource has been deleted
@@ -301,7 +303,7 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, cluster *clusterv1.Clu
 	}
 
 	if cluster.Spec.InfrastructureRef != nil {
-		obj, err := external.Get(ctx, r.Client, cluster.Spec.InfrastructureRef, cluster.Namespace)
+		obj, err := external.Get(ctx, r.UnstructuredCachingClient, cluster.Spec.InfrastructureRef, cluster.Namespace)
 		switch {
 		case apierrors.IsNotFound(errors.Cause(err)):
 			// All good - the infra resource has been deleted

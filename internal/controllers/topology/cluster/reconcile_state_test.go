@@ -1137,11 +1137,11 @@ func TestReconcileInfrastructureCluster(t *testing.T) {
 
 			// Spec
 			wantSpec, ok, err := unstructured.NestedMap(tt.want.UnstructuredContent(), "spec")
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(ok).To(BeTrue())
 
 			gotSpec, ok, err := unstructured.NestedMap(got.UnstructuredContent(), "spec")
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(ok).To(BeTrue())
 			for k, v := range wantSpec {
 				g.Expect(gotSpec).To(HaveKeyWithValue(k, v))
@@ -1433,12 +1433,12 @@ func TestReconcileControlPlane(t *testing.T) {
 
 			// Get the spec from the ControlPlaneObject we are expecting
 			wantControlPlaneObjectSpec, ok, err := unstructured.NestedMap(tt.want.Object.UnstructuredContent(), "spec")
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(ok).To(BeTrue())
 
 			// Get the spec from the ControlPlaneObject we got from the client.Get
 			gotControlPlaneObjectSpec, ok, err := unstructured.NestedMap(gotControlPlaneObject.UnstructuredContent(), "spec")
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(ok).To(BeTrue())
 
 			for k, v := range wantControlPlaneObjectSpec {
@@ -1456,7 +1456,7 @@ func TestReconcileControlPlane(t *testing.T) {
 				if gotRotation {
 					pattern := fmt.Sprintf("%s.*", controlPlaneInfrastructureMachineTemplateNamePrefix(s.Current.Cluster.Name))
 					ok, err := regexp.Match(pattern, []byte(gotInfrastructureMachineRef.Name))
-					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(ok).To(BeTrue())
 				}
 
@@ -1468,12 +1468,12 @@ func TestReconcileControlPlane(t *testing.T) {
 
 				// Get the spec from the InfrastructureMachineTemplate we are expecting
 				wantInfrastructureMachineTemplateSpec, ok, err := unstructured.NestedMap(tt.want.InfrastructureMachineTemplate.UnstructuredContent(), "spec")
-				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(ok).To(BeTrue())
 
 				// Get the spec from the InfrastructureMachineTemplate we got from the client.Get
 				gotInfrastructureMachineTemplateSpec, ok, err := unstructured.NestedMap(gotInfrastructureMachineTemplate.UnstructuredContent(), "spec")
-				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(ok).To(BeTrue())
 
 				// Compare all keys and values in the InfrastructureMachineTemplate Spec
@@ -1778,6 +1778,7 @@ func TestReconcileMachineDeployments(t *testing.T) {
 	tests := []struct {
 		name                                      string
 		current                                   []*scope.MachineDeploymentState
+		currentOnlyAPIServer                      []*scope.MachineDeploymentState
 		desired                                   []*scope.MachineDeploymentState
 		upgradeTracker                            *scope.UpgradeTracker
 		want                                      []*scope.MachineDeploymentState
@@ -1791,6 +1792,14 @@ func TestReconcileMachineDeployments(t *testing.T) {
 			desired: []*scope.MachineDeploymentState{md1},
 			want:    []*scope.MachineDeploymentState{md1},
 			wantErr: false,
+		},
+		{
+			name:                 "Should skip creating desired MachineDeployment if it already exists in the apiserver (even if it is not in current state)",
+			current:              nil,
+			currentOnlyAPIServer: []*scope.MachineDeploymentState{md1},
+			desired:              []*scope.MachineDeploymentState{md1},
+			want:                 []*scope.MachineDeploymentState{md1},
+			wantErr:              false,
 		},
 		{
 			name:           "Should not create desired MachineDeployment if the current does not exists yet and it marked as pending create",
@@ -1916,8 +1925,18 @@ func TestReconcileMachineDeployments(t *testing.T) {
 			}
 
 			currentMachineDeploymentStates := toMachineDeploymentTopologyStateMap(tt.current)
-			s := scope.New(builder.Cluster(metav1.NamespaceDefault, "cluster-1").Build())
+			s := scope.New(builder.Cluster(namespace.GetName(), "cluster-1").Build())
 			s.Current.MachineDeployments = currentMachineDeploymentStates
+
+			// currentOnlyAPIServer MDs only exist in the APIserver but are not part of s.Current.
+			// This simulates that getCurrentMachineDeploymentState in current_state.go read a stale MD list.
+			for _, s := range tt.currentOnlyAPIServer {
+				mdState := prepareMachineDeploymentState(s, namespace.GetName())
+
+				g.Expect(env.PatchAndWait(ctx, mdState.InfrastructureMachineTemplate, client.ForceOwnership, client.FieldOwner(structuredmerge.TopologyManagerName))).To(Succeed())
+				g.Expect(env.PatchAndWait(ctx, mdState.BootstrapTemplate, client.ForceOwnership, client.FieldOwner(structuredmerge.TopologyManagerName))).To(Succeed())
+				g.Expect(env.PatchAndWait(ctx, mdState.Object, client.ForceOwnership, client.FieldOwner(structuredmerge.TopologyManagerName))).To(Succeed())
+			}
 
 			s.Desired = &scope.ClusterState{MachineDeployments: toMachineDeploymentTopologyStateMap(tt.desired)}
 
@@ -1926,7 +1945,8 @@ func TestReconcileMachineDeployments(t *testing.T) {
 			}
 
 			r := Reconciler{
-				Client:             env,
+				Client:             env.GetClient(),
+				APIReader:          env.GetAPIReader(),
 				patchHelperFactory: serverSideApplyPatchHelperFactory(env, ssa.NewCache()),
 				recorder:           env.GetEventRecorderFor("test"),
 			}
@@ -2676,7 +2696,8 @@ func TestReconcileMachineDeploymentMachineHealthCheck(t *testing.T) {
 			s.Desired = &scope.ClusterState{MachineDeployments: toMachineDeploymentTopologyStateMap(tt.desired)}
 
 			r := Reconciler{
-				Client:             env,
+				Client:             env.GetClient(),
+				APIReader:          env.GetAPIReader(),
 				patchHelperFactory: serverSideApplyPatchHelperFactory(env, ssa.NewCache()),
 				recorder:           env.GetEventRecorderFor("test"),
 			}
@@ -2712,7 +2733,10 @@ func newFakeMachineDeploymentTopologyState(name string, infrastructureMachineTem
 		Object: builder.MachineDeployment(metav1.NamespaceDefault, name).
 			WithInfrastructureTemplate(infrastructureMachineTemplate).
 			WithBootstrapTemplate(bootstrapTemplate).
-			WithLabels(map[string]string{clusterv1.ClusterTopologyMachineDeploymentNameLabel: name + "-topology"}).
+			WithLabels(map[string]string{
+				clusterv1.ClusterTopologyMachineDeploymentNameLabel: name + "-topology",
+				clusterv1.ClusterTopologyOwnedLabel:                 "",
+			}).
 			WithClusterName("cluster-1").
 			WithReplicas(1).
 			WithDefaulter(true).

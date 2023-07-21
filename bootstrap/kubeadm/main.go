@@ -23,12 +23,15 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"os"
+	goruntime "runtime"
 	"time"
 
 	// +kubebuilder:scaffold:imports
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	cliflag "k8s.io/component-base/cli/flag"
@@ -81,6 +84,7 @@ var (
 	watchFilterValue            string
 	watchNamespace              string
 	profilerAddress             string
+	enableContentionProfiling   bool
 	clusterConcurrency          int
 	kubeadmConfigConcurrency    int
 	syncPeriod                  time.Duration
@@ -118,6 +122,9 @@ func InitFlags(fs *pflag.FlagSet) {
 
 	fs.StringVar(&profilerAddress, "profiler-address", "",
 		"Bind address to expose the pprof profiler (e.g. localhost:6060)")
+
+	fs.BoolVar(&enableContentionProfiling, "contention-profiling", false,
+		"Enable block profiling, if profiler-address is set.")
 
 	fs.IntVar(&clusterConcurrency, "cluster-concurrency", 10,
 		"Number of clusters to process simultaneously")
@@ -184,6 +191,13 @@ func main() {
 		watchNamespaces = []string{watchNamespace}
 	}
 
+	if profilerAddress != "" && enableContentionProfiling {
+		goruntime.SetBlockProfileRate(1)
+	}
+
+	req, _ := labels.NewRequirement(clusterv1.ClusterNameLabel, selection.Exists, nil)
+	clusterSecretCacheSelector := labels.NewSelector().Add(*req)
+
 	ctrlOptions := ctrl.Options{
 		Scheme:                     scheme,
 		MetricsBindAddress:         metricsBindAddr,
@@ -198,6 +212,14 @@ func main() {
 		Cache: cache.Options{
 			Namespaces: watchNamespaces,
 			SyncPeriod: &syncPeriod,
+			ByObject: map[client.Object]cache.ByObject{
+				// Note: Only Secrets with the cluster name label are cached.
+				// The default client of the manager won't use the cache for secrets at all (see Client.Cache.DisableFor).
+				// The cached secrets will only be used by the secretCachingClient we create below.
+				&corev1.Secret{}: {
+					Label: clusterSecretCacheSelector,
+				},
+			},
 		},
 		Client: client.Options{
 			Cache: &client.CacheOptions{
@@ -250,15 +272,26 @@ func setupChecks(mgr ctrl.Manager) {
 }
 
 func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
+	secretCachingClient, err := client.New(mgr.GetConfig(), client.Options{
+		HTTPClient: mgr.GetHTTPClient(),
+		Cache: &client.CacheOptions{
+			Reader: mgr.GetCache(),
+		},
+	})
+	if err != nil {
+		setupLog.Error(err, "unable to create secret caching client")
+		os.Exit(1)
+	}
+
 	// Set up a ClusterCacheTracker and ClusterCacheReconciler to provide to controllers
 	// requiring a connection to a remote cluster
 	log := ctrl.Log.WithName("remote").WithName("ClusterCacheTracker")
 	tracker, err := remote.NewClusterCacheTracker(
 		mgr,
 		remote.ClusterCacheTrackerOptions{
-			ControllerName: controllerName,
-			Log:            &log,
-			Indexes:        remote.DefaultIndexes,
+			SecretCachingClient: secretCachingClient,
+			ControllerName:      controllerName,
+			Log:                 &log,
 		},
 	)
 	if err != nil {
@@ -275,10 +308,11 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	}
 
 	if err := (&kubeadmbootstrapcontrollers.KubeadmConfigReconciler{
-		Client:           mgr.GetClient(),
-		Tracker:          tracker,
-		WatchFilterValue: watchFilterValue,
-		TokenTTL:         tokenTTL,
+		Client:              mgr.GetClient(),
+		SecretCachingClient: secretCachingClient,
+		Tracker:             tracker,
+		WatchFilterValue:    watchFilterValue,
+		TokenTTL:            tokenTTL,
 	}).SetupWithManager(ctx, mgr, concurrency(kubeadmConfigConcurrency)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubeadmConfig")
 		os.Exit(1)

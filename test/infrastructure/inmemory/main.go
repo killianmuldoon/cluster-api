@@ -22,9 +22,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	goruntime "runtime"
 	"time"
 
 	"github.com/spf13/pflag"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -67,6 +69,7 @@ var (
 	watchNamespace              string
 	watchFilterValue            string
 	profilerAddress             string
+	enableContentionProfiling   bool
 	clusterConcurrency          int
 	machineConcurrency          int
 	syncPeriod                  time.Duration
@@ -88,6 +91,7 @@ func init() {
 	// scheme used for operating on the cloud resource.
 	_ = cloudv1.AddToScheme(cloudScheme)
 	_ = corev1.AddToScheme(cloudScheme)
+	_ = appsv1.AddToScheme(cloudScheme)
 	_ = rbacv1.AddToScheme(cloudScheme)
 }
 
@@ -118,6 +122,9 @@ func InitFlags(fs *pflag.FlagSet) {
 
 	fs.StringVar(&profilerAddress, "profiler-address", "",
 		"Bind address to expose the pprof profiler (e.g. localhost:6060)")
+
+	fs.BoolVar(&enableContentionProfiling, "contention-profiling", false,
+		"Enable block profiling, if profiler-address is set.")
 
 	fs.IntVar(&clusterConcurrency, "cluster-concurrency", 10,
 		"Number of clusters to process simultaneously")
@@ -176,6 +183,10 @@ func main() {
 	var watchNamespaces []string
 	if watchNamespace != "" {
 		watchNamespaces = []string{watchNamespace}
+	}
+
+	if profilerAddress != "" && enableContentionProfiling {
+		goruntime.SetBlockProfileRate(1)
 	}
 
 	ctrlOptions := ctrl.Options{
@@ -257,7 +268,11 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 
 	// Start an http server
 	podIP := os.Getenv("POD_IP")
-	apiServerMux := server.NewWorkloadClustersMux(cloudMgr, podIP)
+	apiServerMux, err := server.NewWorkloadClustersMux(cloudMgr, podIP)
+	if err != nil {
+		setupLog.Error(err, "unable to create workload clusters mux")
+		os.Exit(1)
+	}
 
 	// Setup reconcilers
 	if err := (&controllers.InMemoryClusterReconciler{

@@ -19,14 +19,14 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 1,
+  "id": 2,
   "links": [],
   "liveNow": false,
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -82,7 +82,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -96,7 +96,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -111,7 +111,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -197,6 +197,7 @@
               "namespace 3": true,
               "node 2": true,
               "node 3": true,
+              "priority_class": true,
               "service": true,
               "service 1": true,
               "service 2": true,
@@ -296,7 +297,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -373,7 +374,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "avg(rate(container_cpu_usage_seconds_total{pod=~\"$Pod\",container=~\"$Container\",container!=\"\"}[5m])) by (pod,container)\n",
@@ -403,7 +404,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -480,7 +481,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "avg(container_memory_working_set_bytes{pod=~\"$Pod\",container=~\"$Container\",container!=\"\"}) by (pod,container)",
@@ -496,7 +497,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -573,7 +574,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "avg(container_memory_cache{pod=~\"$Pod\",container=~\"$Container\",container!=\"\"}) by (pod,container)",
@@ -603,7 +604,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -680,7 +681,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "avg(rate(container_network_transmit_bytes_total{pod=~\"$Pod\"}[5m])) by (pod)",
@@ -696,7 +697,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -773,7 +774,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "avg(rate(container_network_receive_bytes_total{pod=~\"$Pod\"}[5m])) by (pod)",
@@ -789,7 +790,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -866,7 +867,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "avg(rate(container_network_transmit_errors_total{pod=~\"$Pod\"}[5m])) by (pod)",
@@ -882,7 +883,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -959,7 +960,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "avg(rate(container_network_receive_errors_total{pod=~\"$Pod\"}[5m])) by (pod)",
@@ -989,7 +990,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1065,7 +1066,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(controller_runtime_active_workers{pod=~\"$Pod\",controller=~\"$Controller\"}) by (pod,controller)",
@@ -1080,7 +1081,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1157,7 +1158,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(controller_runtime_active_workers{pod=~\"$Pod\",controller=~\"$Controller\"}) by (pod,controller) / sum(controller_runtime_max_concurrent_reconciles{pod=~\"$Pod\",controller=~\"$Controller\"}) by (pod,controller)",
@@ -1186,7 +1187,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1264,7 +1265,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_reconcile_total{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod)",
@@ -1279,7 +1280,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1357,7 +1358,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_reconcile_total{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod,controller)",
@@ -1372,7 +1373,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1450,7 +1451,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_reconcile_total{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod,result)",
@@ -1465,7 +1466,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1543,7 +1544,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_reconcile_total{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod,controller,result)",
@@ -1558,7 +1559,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1636,7 +1637,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_reconcile_errors_total{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod)",
@@ -1651,7 +1652,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1729,7 +1730,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_reconcile_errors_total{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod,controller)",
@@ -1758,7 +1759,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -1815,7 +1816,7 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
+            "w": 24,
             "x": 0,
             "y": 11
           },
@@ -1836,10 +1837,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum(rate(controller_runtime_reconcile_time_seconds_sum{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod) / sum(rate(controller_runtime_reconcile_time_seconds_count{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod)",
+              "expr": "sum(rate(controller_runtime_reconcile_time_seconds_sum{pod=~\"$Pod\"}[5m])) by (pod) / sum(rate(controller_runtime_reconcile_time_seconds_count{pod=~\"$Pod\"}[5m])) by (pod)",
               "legendFormat": "{{pod}}",
               "range": true,
               "refId": "A"
@@ -1851,8 +1852,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
+          "description": "",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1907,12 +1909,12 @@
             "overrides": []
           },
           "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 11
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 19
           },
-          "id": 28,
+          "id": 65,
           "options": {
             "legend": {
               "calcs": [],
@@ -1929,22 +1931,47 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum(rate(controller_runtime_reconcile_time_seconds_sum{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod,controller) / sum(rate(controller_runtime_reconcile_time_seconds_count{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod,controller)",
-              "legendFormat": "{{pod}}: {{controller}}",
+              "expr": "histogram_quantile(0.50, sum(rate(controller_runtime_reconcile_time_seconds_bucket{pod=~\"$Pod\"}[5m])) by (pod, le))",
+              "hide": false,
+              "legendFormat": "P50 {{pod}}",
+              "range": true,
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.90, sum(rate(controller_runtime_reconcile_time_seconds_bucket{pod=~\"$Pod\"}[5m])) by (pod, le))",
+              "hide": false,
+              "legendFormat": "P90 {{pod}}",
               "range": true,
               "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.99, sum(rate(controller_runtime_reconcile_time_seconds_bucket{pod=~\"$Pod\"}[5m])) by (pod, le))",
+              "hide": false,
+              "legendFormat": "P99 {{pod}}",
+              "range": true,
+              "refId": "C"
             }
           ],
-          "title": "Reconcile Duration by Controller",
+          "title": "Reconcile Duration Quantils",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -2003,7 +2030,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 19
+            "y": 28
           },
           "id": 62,
           "options": {
@@ -2022,7 +2049,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_reconcile_time_seconds_sum{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod,controller) / sum(rate(controller_runtime_reconcile_time_seconds_count{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod,controller)",
@@ -2037,7 +2064,126 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 36
+          },
+          "id": 66,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.50, sum(rate(controller_runtime_reconcile_time_seconds_bucket{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod, controller, le))",
+              "hide": false,
+              "legendFormat": "P50 {{pod}} {{controller}} ",
+              "range": true,
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.90, sum(rate(controller_runtime_reconcile_time_seconds_bucket{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod, controller, le))",
+              "hide": false,
+              "legendFormat": "P90 {{pod}} {{controller}} ",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.99, sum(rate(controller_runtime_reconcile_time_seconds_bucket{pod=~\"$Pod\",controller=~\"$Controller\"}[5m])) by (pod, controller, le))",
+              "hide": false,
+              "legendFormat": "P99 {{pod}} {{controller}} ",
+              "range": true,
+              "refId": "C"
+            }
+          ],
+          "title": "Reconcile Duration Quantils by Controller",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -2058,7 +2204,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 27
+            "y": 45
           },
           "id": 26,
           "options": {
@@ -2100,7 +2246,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "exemplar": true,
@@ -2131,7 +2277,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -2209,7 +2355,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "workqueue_depth{pod=~\"$Pod\",name=~\"$Controller\"}",
@@ -2224,7 +2370,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -2302,7 +2448,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(workqueue_adds_total{pod=~\"$Pod\",name=~\"$Controller\"}[5m])",
@@ -2317,9 +2463,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
-          "description": "Total number of retries handled by workqueue",
+          "description": "Total number of retries handled by workqueue. In controller-runtime the retry metric is observed when an item is added to the queue because of RequeueAfter.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2396,7 +2542,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(workqueue_retries_total{pod=~\"$Pod\",name=~\"$Controller\"}[5m])",
@@ -2411,7 +2557,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "How many seconds has the longest running processor for workqueue been running.",
           "fieldConfig": {
@@ -2490,7 +2636,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "workqueue_longest_running_processor_seconds{pod=~\"$Pod\",name=~\"$Controller\"}",
@@ -2505,7 +2651,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "How many seconds of work has been done that is in progress and hasn't been observed by work_duration. Large values indicate stuck threads. One can deduce the number of stuck threads by observing the rate at which this increases.",
           "fieldConfig": {
@@ -2584,7 +2730,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "workqueue_unfinished_work_seconds{pod=~\"$Pod\",name=~\"$Controller\"}",
@@ -2599,9 +2745,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
-          "description": "How long in seconds an item stays in workqueue before being requested",
+          "description": "How long in seconds processing an item from workqueue takes",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2661,7 +2807,7 @@
             "x": 0,
             "y": 36
           },
-          "id": 63,
+          "id": 64,
           "options": {
             "legend": {
               "calcs": [],
@@ -2678,10 +2824,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.50, sum(rate(workqueue_queue_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
+              "expr": "histogram_quantile(0.50, sum(rate(workqueue_work_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
               "hide": false,
               "legendFormat": "P50 {{pod}} {{name}} ",
               "range": true,
@@ -2690,10 +2836,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.90, sum(rate(workqueue_queue_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
+              "expr": "histogram_quantile(0.90, sum(rate(workqueue_work_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
               "hide": false,
               "legendFormat": "P90 {{pod}} {{name}} ",
               "range": true,
@@ -2702,106 +2848,25 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum(rate(workqueue_queue_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
+              "expr": "histogram_quantile(0.99, sum(rate(workqueue_work_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
               "hide": false,
               "legendFormat": "P99 {{pod}} {{name}} ",
               "range": true,
               "refId": "C"
             }
           ],
-          "title": "Workqueue Queue Duration Quantils",
+          "title": "Workqueue Work Duration Quantils",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "How long in seconds an item stays in workqueue before being requested",
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "scaleDistribution": {
-                  "type": "linear"
-                }
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 13,
-            "w": 24,
-            "x": 0,
-            "y": 45
-          },
-          "id": 36,
-          "options": {
-            "calculate": false,
-            "cellGap": 2,
-            "color": {
-              "exponent": 0.5,
-              "fill": "dark-orange",
-              "mode": "scheme",
-              "reverse": true,
-              "scale": "exponential",
-              "scheme": "Oranges",
-              "steps": 128
-            },
-            "exemplars": {
-              "color": "rgba(255,0,255,0.7)"
-            },
-            "filterValues": {
-              "le": 1e-9
-            },
-            "legend": {
-              "show": true
-            },
-            "rowsFrame": {
-              "layout": "auto"
-            },
-            "tooltip": {
-              "show": true,
-              "yHistogram": false
-            },
-            "yAxis": {
-              "axisPlacement": "left",
-              "reverse": false,
-              "unit": "short"
-            }
-          },
-          "pluginVersion": "9.5.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "editorMode": "code",
-              "exemplar": true,
-              "expr": "rate(workqueue_queue_duration_seconds_bucket{pod=~\"$Pod\", name=~\"$Controller\"}[$__rate_interval])",
-              "format": "heatmap",
-              "legendFormat": "{{le}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Workqueue Queue Duration",
-          "type": "heatmap"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "description": "How long in seconds processing an item from workqueue takes",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2859,9 +2924,9 @@
             "h": 9,
             "w": 24,
             "x": 0,
-            "y": 58
+            "y": 45
           },
-          "id": 64,
+          "id": 63,
           "options": {
             "legend": {
               "calcs": [],
@@ -2878,10 +2943,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.50, sum(rate(workqueue_work_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
+              "expr": "histogram_quantile(0.50, sum(rate(workqueue_queue_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
               "hide": false,
               "legendFormat": "P50 {{pod}} {{name}} ",
               "range": true,
@@ -2890,10 +2955,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.90, sum(rate(workqueue_work_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
+              "expr": "histogram_quantile(0.90, sum(rate(workqueue_queue_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
               "hide": false,
               "legendFormat": "P90 {{pod}} {{name}} ",
               "range": true,
@@ -2902,23 +2967,23 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum(rate(workqueue_work_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
+              "expr": "histogram_quantile(0.99, sum(rate(workqueue_queue_duration_seconds_bucket{pod=~\"$Pod\",name=~\"$Controller\"}[5m])) by (pod, name, le))",
               "hide": false,
               "legendFormat": "P99 {{pod}} {{name}} ",
               "range": true,
               "refId": "C"
             }
           ],
-          "title": "Workqueue Work Duration Quantils",
+          "title": "Workqueue Queue Duration Quantils",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "How long in seconds processing an item from workqueue takes",
           "fieldConfig": {
@@ -2940,7 +3005,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 67
+            "y": 54
           },
           "id": 37,
           "options": {
@@ -2982,7 +3047,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "exemplar": true,
@@ -2994,6 +3059,87 @@
             }
           ],
           "title": "Workqueue Work Duration",
+          "type": "heatmap"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "How long in seconds an item stays in workqueue before being requested",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 13,
+            "w": 24,
+            "x": 0,
+            "y": 67
+          },
+          "id": 36,
+          "options": {
+            "calculate": false,
+            "cellGap": 2,
+            "color": {
+              "exponent": 0.5,
+              "fill": "dark-orange",
+              "mode": "scheme",
+              "reverse": true,
+              "scale": "exponential",
+              "scheme": "Oranges",
+              "steps": 128
+            },
+            "exemplars": {
+              "color": "rgba(255,0,255,0.7)"
+            },
+            "filterValues": {
+              "le": 1e-9
+            },
+            "legend": {
+              "show": true
+            },
+            "rowsFrame": {
+              "layout": "auto"
+            },
+            "tooltip": {
+              "show": true,
+              "yHistogram": false
+            },
+            "yAxis": {
+              "axisPlacement": "left",
+              "reverse": false,
+              "unit": "short"
+            }
+          },
+          "pluginVersion": "9.5.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "rate(workqueue_queue_duration_seconds_bucket{pod=~\"$Pod\", name=~\"$Controller\"}[$__rate_interval])",
+              "format": "heatmap",
+              "legendFormat": "{{le}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Workqueue Queue Duration",
           "type": "heatmap"
         }
       ],
@@ -3013,7 +3159,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -3090,7 +3236,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_webhook_requests_total{pod=~\"$Pod\",webhook=~\"/mutate-.*\"}[5m])) by (pod)",
@@ -3101,7 +3247,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_webhook_requests_total{pod=~\"$Pod\",webhook=~\"/validate-.*\"}[5m])) by (pod)",
@@ -3113,7 +3259,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_webhook_requests_total{pod=~\"$Pod\",webhook=~\"/convert\"}[5m])) by (pod)",
@@ -3129,7 +3275,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -3206,7 +3352,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_webhook_requests_total{pod=~\"$Pod\"}[5m])) by (pod,code,webhook) > 0",
@@ -3221,7 +3367,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -3298,7 +3444,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_webhook_requests_total{pod=~\"$Pod\",code!=\"200\"}[5m])) by (pod,code,webhook) > 0",
@@ -3313,7 +3459,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -3390,7 +3536,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(controller_runtime_webhook_latency_seconds_sum{pod=~\"$Pod\"}[5m])) by (pod,webhook) / sum(rate(controller_runtime_webhook_latency_seconds_count{pod=~\"$Pod\"}[5m])) by (pod,webhook) > 0",
@@ -3419,7 +3565,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -3496,7 +3642,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(rate(rest_client_requests_total{pod=~\"$Pod\"}[5m])) by (pod, code, method) > 0",
@@ -3525,7 +3671,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -3602,7 +3748,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "process_open_fds{pod=~\"$Pod\"}",
@@ -3617,7 +3763,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -3694,7 +3840,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "deriv(process_open_fds{pod=~\"$Pod\"}[5m])",
@@ -3723,7 +3869,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -3801,7 +3947,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_goroutines{pod=~\"$Pod\"}",
@@ -3830,7 +3976,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -3908,7 +4054,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_sys_bytes{pod=~\"$Pod\"}",
@@ -3923,7 +4069,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -4001,7 +4147,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_stack_inuse_bytes{pod=~\"$Pod\"}",
@@ -4012,7 +4158,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_stack_sys_bytes{pod=~\"$Pod\"}",
@@ -4028,7 +4174,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -4106,7 +4252,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_heap_alloc_bytes{pod=~\"$Pod\"}",
@@ -4117,7 +4263,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_heap_sys_bytes{pod=~\"$Pod\"}",
@@ -4129,7 +4275,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_heap_idle_bytes{pod=~\"$Pod\"}",
@@ -4141,7 +4287,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_heap_inuse_bytes{pod=~\"$Pod\"}",
@@ -4153,7 +4299,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_heap_released_bytes{pod=~\"$Pod\"}",
@@ -4169,7 +4315,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -4247,7 +4393,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_mspan_inuse_bytes{pod=~\"$Pod\"}",
@@ -4258,7 +4404,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_mspan_sys_bytes{pod=~\"$Pod\"}",
@@ -4270,7 +4416,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_mcache_inuse_bytes{pod=~\"$Pod\"}",
@@ -4282,7 +4428,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_mcache_sys_bytes{pod=~\"$Pod\"}",
@@ -4294,7 +4440,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_buck_hash_sys_bytes{pod=~\"$Pod\"}",
@@ -4306,7 +4452,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_gc_sys_bytes{pod=~\"$Pod\"}",
@@ -4318,7 +4464,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_other_sys_bytes{pod=~\"$Pod\"}",
@@ -4330,7 +4476,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_next_gc_bytes{pod=~\"$Pod\"}",
@@ -4346,7 +4492,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -4424,7 +4570,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_memstats_mallocs_total{pod=~\"$Pod\"} - go_memstats_frees_total{pod=~\"$Pod\"}",
@@ -4439,7 +4585,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -4517,7 +4663,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(go_memstats_lookups_total{pod=~\"$Pod\"}[5m])",
@@ -4532,7 +4678,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -4610,7 +4756,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(go_memstats_mallocs_total{pod=~\"$Pod\"}[5m])",
@@ -4625,7 +4771,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -4703,7 +4849,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(go_memstats_alloc_bytes_total{pod=~\"$Pod\"}[5m])",
@@ -4718,7 +4864,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -4796,7 +4942,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "go_gc_duration_seconds{pod=~\"$Pod\"}",
@@ -4832,7 +4978,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PBFA97CFB590B2093"
+          "uid": "prometheus"
         },
         "definition": "label_values(kubernetes_io_hostname)",
         "hide": 0,
@@ -4860,7 +5006,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PBFA97CFB590B2093"
+          "uid": "prometheus"
         },
         "definition": "label_values(kube_pod_info{node=~\"^$Node$\"},pod)",
         "hide": 0,
@@ -4888,7 +5034,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PBFA97CFB590B2093"
+          "uid": "prometheus"
         },
         "definition": "label_values(kube_pod_container_info{node=~\"^$Node$\",pod=~\"^$Pod$\"},container)",
         "hide": 0,
@@ -4920,7 +5066,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PBFA97CFB590B2093"
+          "uid": "prometheus"
         },
         "definition": "label_values(controller_runtime_active_workers,controller)",
         "hide": 0,
@@ -4942,7 +5088,7 @@
       {
         "datasource": {
           "type": "prometheus",
-          "uid": "PBFA97CFB590B2093"
+          "uid": "prometheus"
         },
         "filters": [],
         "hide": 0,

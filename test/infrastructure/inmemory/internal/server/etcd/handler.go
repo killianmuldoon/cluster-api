@@ -33,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cloudv1 "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud/api/v1alpha1"
 	cclient "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud/runtime/client"
 	cmanager "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud/runtime/manager"
 )
@@ -70,24 +71,40 @@ type maintenanceServer struct {
 }
 
 func (m *maintenanceServer) Alarm(ctx context.Context, _ *pb.AlarmRequest) (*pb.AlarmResponse, error) {
-	resourceGroup, etcdMember, err := m.getResourceGroupAndMember(ctx)
+	var resourceGroup string
+	start := time.Now()
+	defer func() {
+		requestLatency.WithLabelValues("Alarm", resourceGroup).Observe(time.Since(start).Seconds())
+	}()
+
+	var etcdMember string
+	var err error
+	resourceGroup, etcdMember, err = m.getResourceGroupAndMember(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	m.log.Info("Etcd: Alarm", "resourceGroup", resourceGroup, "etcdMember", etcdMember)
+	m.log.V(4).Info("Etcd: Alarm", "resourceGroup", resourceGroup, "etcdMember", etcdMember)
 
 	return &pb.AlarmResponse{}, nil
 }
 
 func (m *maintenanceServer) Status(ctx context.Context, _ *pb.StatusRequest) (*pb.StatusResponse, error) {
-	resourceGroup, etcdMember, err := m.getResourceGroupAndMember(ctx)
+	var resourceGroup string
+	start := time.Now()
+	defer func() {
+		requestLatency.WithLabelValues("Status", resourceGroup).Observe(time.Since(start).Seconds())
+	}()
+
+	var etcdMember string
+	var err error
+	resourceGroup, etcdMember, err = m.getResourceGroupAndMember(ctx)
 	if err != nil {
 		return nil, err
 	}
 	cloudClient := m.manager.GetResourceGroup(resourceGroup).GetClient()
 
-	m.log.Info("Etcd: Status", "resourceGroup", resourceGroup, "etcdMember", etcdMember)
+	m.log.V(4).Info("Etcd: Status", "resourceGroup", resourceGroup, "etcdMember", etcdMember)
 	_, statusResponse, err := m.inspectEtcd(ctx, cloudClient, etcdMember)
 	if err != nil {
 		return nil, err
@@ -97,27 +114,74 @@ func (m *maintenanceServer) Status(ctx context.Context, _ *pb.StatusRequest) (*p
 }
 
 func (m *maintenanceServer) Defragment(_ context.Context, _ *pb.DefragmentRequest) (*pb.DefragmentResponse, error) {
-	panic("implement me")
+	return nil, fmt.Errorf("not implemented: Defragment")
 }
 
 func (m *maintenanceServer) Hash(_ context.Context, _ *pb.HashRequest) (*pb.HashResponse, error) {
-	panic("implement me")
+	return nil, fmt.Errorf("not implemented: Hash")
 }
 
 func (m *maintenanceServer) HashKV(_ context.Context, _ *pb.HashKVRequest) (*pb.HashKVResponse, error) {
-	panic("implement me")
+	return nil, fmt.Errorf("not implemented: HashKV")
 }
 
 func (m *maintenanceServer) Snapshot(_ *pb.SnapshotRequest, _ pb.Maintenance_SnapshotServer) error {
-	panic("implement me")
+	return fmt.Errorf("not implemented: Snapshot")
 }
 
-func (m *maintenanceServer) MoveLeader(_ context.Context, _ *pb.MoveLeaderRequest) (*pb.MoveLeaderResponse, error) {
-	panic("implement me")
+func (m *maintenanceServer) MoveLeader(ctx context.Context, req *pb.MoveLeaderRequest) (*pb.MoveLeaderResponse, error) {
+	var resourceGroup string
+	start := time.Now()
+	defer func() {
+		requestLatency.WithLabelValues("MoveLeader", resourceGroup).Observe(time.Since(start).Seconds())
+	}()
+
+	out := new(pb.MoveLeaderResponse)
+	var err error
+	resourceGroup, _, err = m.getResourceGroupAndMember(ctx)
+	if err != nil {
+		return nil, err
+	}
+	etcdPods := &corev1.PodList{}
+	cloudClient := m.manager.GetResourceGroup(resourceGroup).GetClient()
+	if err := cloudClient.List(ctx, etcdPods,
+		client.InNamespace(metav1.NamespaceSystem),
+		client.MatchingLabels{
+			"component": "etcd",
+			"tier":      "control-plane"},
+	); err != nil {
+		return nil, errors.Wrap(err, "failed to list etcd members")
+	}
+
+	if len(etcdPods.Items) == 0 {
+		return nil, errors.New("failed to list etcd members: no etcd pods found")
+	}
+
+	for i := range etcdPods.Items {
+		pod := &etcdPods.Items[i]
+		for k, v := range pod.GetAnnotations() {
+			if k == cloudv1.EtcdMemberIDAnnotationName {
+				target := strconv.FormatInt(int64(req.TargetID), 10)
+				if v == target {
+					updatedPod := pod.DeepCopy()
+					annotations := updatedPod.GetAnnotations()
+					annotations[cloudv1.EtcdLeaderFromAnnotationName] = time.Now().Format(time.RFC3339)
+					updatedPod.SetAnnotations(annotations)
+					err := cloudClient.Patch(ctx, updatedPod, client.MergeFrom(pod))
+					if err != nil {
+						return nil, err
+					}
+					return out, nil
+				}
+			}
+		}
+	}
+	// If we reach this point leadership was not moved.
+	return nil, errors.Errorf("etcd member with ID %d did not become the leader: expected etcd Pod not found", req.TargetID)
 }
 
 func (m *maintenanceServer) Downgrade(_ context.Context, _ *pb.DowngradeRequest) (*pb.DowngradeResponse, error) {
-	panic("implement me")
+	return nil, fmt.Errorf("not implemented: Downgrade")
 }
 
 // clusterServerServer implements the ClusterServer grpc server.
@@ -126,25 +190,71 @@ type clusterServerServer struct {
 }
 
 func (c *clusterServerServer) MemberAdd(_ context.Context, _ *pb.MemberAddRequest) (*pb.MemberAddResponse, error) {
-	panic("implement me")
+	return nil, fmt.Errorf("not implemented: MemberAdd")
 }
 
-func (c *clusterServerServer) MemberRemove(_ context.Context, _ *pb.MemberRemoveRequest) (*pb.MemberRemoveResponse, error) {
-	panic("implement me")
-}
+func (c *clusterServerServer) MemberRemove(ctx context.Context, req *pb.MemberRemoveRequest) (*pb.MemberRemoveResponse, error) {
+	var resourceGroup string
+	start := time.Now()
+	defer func() {
+		requestLatency.WithLabelValues("MemberRemove", resourceGroup).Observe(time.Since(start).Seconds())
+	}()
 
-func (c *clusterServerServer) MemberUpdate(_ context.Context, _ *pb.MemberUpdateRequest) (*pb.MemberUpdateResponse, error) {
-	panic("implement me")
-}
-
-func (c *clusterServerServer) MemberList(ctx context.Context, _ *pb.MemberListRequest) (*pb.MemberListResponse, error) {
-	resourceGroup, etcdMember, err := c.getResourceGroupAndMember(ctx)
+	out := new(pb.MemberRemoveResponse)
+	var err error
+	resourceGroup, _, err = c.getResourceGroupAndMember(ctx)
 	if err != nil {
 		return nil, err
 	}
 	cloudClient := c.manager.GetResourceGroup(resourceGroup).GetClient()
 
-	c.log.Info("Etcd: MemberList", "resourceGroup", resourceGroup, "etcdMember", etcdMember)
+	etcdPods := &corev1.PodList{}
+
+	if err := cloudClient.List(ctx, etcdPods,
+		client.InNamespace(metav1.NamespaceSystem),
+		client.MatchingLabels{
+			"component": "etcd",
+			"tier":      "control-plane"},
+	); err != nil {
+		return nil, errors.Wrap(err, "failed to list etcd members")
+	}
+
+	for i := range etcdPods.Items {
+		pod := etcdPods.Items[i]
+		memberID := pod.Annotations[cloudv1.EtcdMemberIDAnnotationName]
+		if memberID != fmt.Sprintf("%d", req.ID) {
+			continue
+		}
+		updatedPod := pod.DeepCopy()
+		updatedPod.Annotations[cloudv1.EtcdMemberRemoved] = ""
+		if err := cloudClient.Patch(ctx, updatedPod, client.MergeFrom(&pod)); err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+	return nil, errors.Errorf("no etcd member with id %d found", req.ID)
+}
+
+func (c *clusterServerServer) MemberUpdate(_ context.Context, _ *pb.MemberUpdateRequest) (*pb.MemberUpdateResponse, error) {
+	return nil, fmt.Errorf("not implemented: MemberUpdate")
+}
+
+func (c *clusterServerServer) MemberList(ctx context.Context, _ *pb.MemberListRequest) (*pb.MemberListResponse, error) {
+	var resourceGroup string
+	start := time.Now()
+	defer func() {
+		requestLatency.WithLabelValues("MemberList", resourceGroup).Observe(time.Since(start).Seconds())
+	}()
+
+	var etcdMember string
+	var err error
+	resourceGroup, etcdMember, err = c.getResourceGroupAndMember(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cloudClient := c.manager.GetResourceGroup(resourceGroup).GetClient()
+
+	c.log.V(4).Info("Etcd: MemberList", "resourceGroup", resourceGroup, "etcdMember", etcdMember)
 	memberList, _, err := c.inspectEtcd(ctx, cloudClient, etcdMember)
 	if err != nil {
 		return nil, err
@@ -154,7 +264,7 @@ func (c *clusterServerServer) MemberList(ctx context.Context, _ *pb.MemberListRe
 }
 
 func (c *clusterServerServer) MemberPromote(_ context.Context, _ *pb.MemberPromoteRequest) (*pb.MemberPromoteResponse, error) {
-	panic("implement me")
+	return nil, fmt.Errorf("not implemented: MemberPromote")
 }
 
 type baseServer struct {
@@ -192,19 +302,32 @@ func (b *baseServer) inspectEtcd(ctx context.Context, cloudClient cclient.Client
 
 	memberList := &pb.MemberListResponse{}
 	statusResponse := &pb.StatusResponse{}
+	var clusterID int
 	var leaderID int
 	var leaderFrom time.Time
 	for _, pod := range etcdPods.Items {
-		clusterID, err := strconv.Atoi(pod.Annotations["etcd.inmemory.infrastructure.cluster.x-k8s.io/cluster-id"])
-		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed read cluster ID annotation from etcd member with name %s", pod.Name)
+		if _, ok := pod.Annotations[cloudv1.EtcdMemberRemoved]; ok {
+			if pod.Name == fmt.Sprintf("%s%s", "etcd-", etcdMember) {
+				return nil, nil, errors.New("inspect called on etcd which has been removed")
+			}
+			continue
 		}
-		memberID, err := strconv.Atoi(pod.Annotations["etcd.inmemory.infrastructure.cluster.x-k8s.io/member-id"])
+		if clusterID == 0 {
+			var err error
+			clusterID, err = strconv.Atoi(pod.Annotations[cloudv1.EtcdClusterIDAnnotationName])
+			if err != nil {
+				return nil, nil, errors.Wrapf(err, "failed read cluster ID annotation from etcd member with name %s", pod.Name)
+			}
+		} else if pod.Annotations[cloudv1.EtcdClusterIDAnnotationName] != fmt.Sprintf("%d", clusterID) {
+			return nil, nil, errors.New("invalid etcd cluster, members have different cluster ID")
+		}
+
+		memberID, err := strconv.Atoi(pod.Annotations[cloudv1.EtcdMemberIDAnnotationName])
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "failed read member ID annotation from etcd member with name %s", pod.Name)
 		}
 
-		if t, err := time.Parse(time.RFC3339, pod.Annotations["etcd.inmemory.infrastructure.cluster.x-k8s.io/leader-from"]); err == nil {
+		if t, err := time.Parse(time.RFC3339, pod.Annotations[cloudv1.EtcdLeaderFromAnnotationName]); err == nil {
 			if t.After(leaderFrom) {
 				leaderID = memberID
 				leaderFrom = t
@@ -216,13 +339,19 @@ func (b *baseServer) inspectEtcd(ctx context.Context, cloudClient cclient.Client
 				ClusterId: uint64(clusterID),
 				MemberId:  uint64(memberID),
 			}
-
 			statusResponse.Header = memberList.Header
 		}
 		memberList.Members = append(memberList.Members, &pb.Member{
 			ID:   uint64(memberID),
 			Name: strings.TrimPrefix(pod.Name, "etcd-"),
 		})
+	}
+
+	if leaderID == 0 {
+		// TODO: consider if and how to automatically recover from this case
+		//  note: this can happen also when adding a new etcd members in the handler, might be it is something we have to take case before deletion...
+		//  for now it should not be an issue because KCP forwards etcd leadership before deletion.
+		return nil, nil, errors.New("invalid etcd cluster, no leader found")
 	}
 	statusResponse.Leader = uint64(leaderID)
 

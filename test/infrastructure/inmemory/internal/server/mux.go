@@ -32,7 +32,9 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -44,14 +46,51 @@ import (
 )
 
 const (
-	debugPort = 19000
+	// DefaultDebugPort default debug port of the workload clusters mux.
+	DefaultDebugPort = 19000
 
 	// This range allows for 4k clusters, which is 4 times the goal we have in mind for
 	// the first iteration of stress tests.
 
-	minPort = 20000
-	maxPort = 24000
+	// DefaultMinPort default min port of the workload clusters mux.
+	DefaultMinPort = 20000
+	// DefaultMaxPort default max port of the workload clusters mux.
+	DefaultMaxPort = 24000
 )
+
+// WorkloadClustersMuxOption define an option for the WorkloadClustersMux creation.
+type WorkloadClustersMuxOption interface {
+	Apply(*WorkloadClustersMuxOptions)
+}
+
+// WorkloadClustersMuxOptions are options for the workload clusters mux.
+type WorkloadClustersMuxOptions struct {
+	MinPort   int
+	MaxPort   int
+	DebugPort int
+}
+
+// ApplyOptions applies WorkloadClustersMuxOption to the current WorkloadClustersMuxOptions.
+func (o *WorkloadClustersMuxOptions) ApplyOptions(opts []WorkloadClustersMuxOption) *WorkloadClustersMuxOptions {
+	for _, opt := range opts {
+		opt.Apply(o)
+	}
+	return o
+}
+
+// CustomPorts allows to customize the ports used by the workload clusters mux.
+type CustomPorts struct {
+	MinPort   int
+	MaxPort   int
+	DebugPort int
+}
+
+// Apply applies this configuration to the given WorkloadClustersMuxOptions.
+func (c CustomPorts) Apply(options *WorkloadClustersMuxOptions) {
+	options.MinPort = c.MinPort
+	options.MaxPort = c.MaxPort
+	options.DebugPort = c.DebugPort
+}
 
 // WorkloadClustersMux implements a server that handles requests for multiple workload clusters.
 // Each workload clusters will get its own listener, serving on a dedicated port, eg.
@@ -77,12 +116,19 @@ type WorkloadClustersMux struct {
 }
 
 // NewWorkloadClustersMux returns a WorkloadClustersMux that handles requests for multiple workload clusters.
-func NewWorkloadClustersMux(manager cmanager.Manager, host string) *WorkloadClustersMux {
+func NewWorkloadClustersMux(manager cmanager.Manager, host string, opts ...WorkloadClustersMuxOption) (*WorkloadClustersMux, error) {
+	options := WorkloadClustersMuxOptions{
+		MinPort:   DefaultMinPort,
+		MaxPort:   DefaultMaxPort,
+		DebugPort: DefaultDebugPort,
+	}
+	options.ApplyOptions(opts)
+
 	m := &WorkloadClustersMux{
 		host:                      host,
-		minPort:                   minPort,
-		maxPort:                   maxPort,
-		portIndex:                 minPort,
+		minPort:                   options.MinPort,
+		maxPort:                   options.MaxPort,
+		portIndex:                 options.MinPort,
 		manager:                   manager,
 		workloadClusterListeners:  map[string]*WorkloadClusterListener{},
 		workloadClusterNameByHost: map[string]string{},
@@ -107,10 +153,13 @@ func NewWorkloadClustersMux(manager cmanager.Manager, host string) *WorkloadClus
 	m.debugServer = http.Server{
 		Handler: api.NewDebugHandler(manager, m.log, m),
 	}
-	l, _ := net.Listen("tcp", net.JoinHostPort(host, fmt.Sprintf("%d", debugPort)))
+	l, err := net.Listen("tcp", net.JoinHostPort(host, fmt.Sprintf("%d", options.DebugPort)))
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create listener for workload cluster mux")
+	}
 	go func() { _ = m.debugServer.Serve(l) }()
 
-	return m
+	return m, nil
 }
 
 // mixedHandler returns an handler that can serve either API server calls or etcd calls.
@@ -269,81 +318,107 @@ func (m *WorkloadClustersMux) initWorkloadClusterListenerWithPortLocked(wclName 
 // When the first API server instance is added the serving certificates and the admin certificate
 // for tests are generated, and the listener is started.
 func (m *WorkloadClustersMux) AddAPIServer(wclName, podName string, caCert *x509.Certificate, caKey *rsa.PrivateKey) error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	// Start server
+	// Note: It is important that we unlock once the server is started. Because otherwise the server
+	// doesn't work yet as GetCertificate (which is required for the tls handshake) also requires the lock.
+	var startServerErr error
+	var wcl *WorkloadClusterListener
+	err := func() error {
+		m.lock.Lock()
+		defer m.lock.Unlock()
 
-	wcl, ok := m.workloadClusterListeners[wclName]
-	if !ok {
-		return errors.Errorf("workloadClusterListener with name %s must be initialized before adding an APIserver", wclName)
-	}
-	wcl.apiServers.Insert(podName)
-	m.log.Info("APIServer instance added to workloadClusterListener", "listenerName", wclName, "address", wcl.Address(), "podName", podName)
+		var ok bool
+		wcl, ok = m.workloadClusterListeners[wclName]
+		if !ok {
+			return errors.Errorf("workloadClusterListener with name %s must be initialized before adding an APIserver", wclName)
+		}
+		wcl.apiServers.Insert(podName)
+		m.log.Info("APIServer instance added to workloadClusterListener", "listenerName", wclName, "address", wcl.Address(), "podName", podName)
 
-	// TODO: check if cert/key are already set, they should match
-	wcl.apiServerCaCertificate = caCert
-	wcl.apiServerCaKey = caKey
+		// TODO: check if cert/key are already set, they should match
+		wcl.apiServerCaCertificate = caCert
+		wcl.apiServerCaKey = caKey
 
-	// Generate Serving certificates for the API server instance
-	// NOTE: There is only one server certificate for all API server instances (kubeadm
-	// instead creates one for each API server pod). We don't need this because we are
-	// accessing all API servers via the same endpoint.
-	if wcl.apiServerServingCertificate == nil {
-		config := apiServerCertificateConfig(wcl.host)
-		cert, key, err := newCertAndKey(caCert, caKey, config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create serving certificate for API server %s", podName)
+		// Generate Serving certificates for the API server instance
+		// NOTE: There is only one server certificate for all API server instances (kubeadm
+		// instead creates one for each API server pod). We don't need this because we are
+		// accessing all API servers via the same endpoint.
+		if wcl.apiServerServingCertificate == nil {
+			config := apiServerCertificateConfig(wcl.host)
+			cert, key, err := newCertAndKey(caCert, caKey, config)
+			if err != nil {
+				return errors.Wrapf(err, "failed to create serving certificate for API server %s", podName)
+			}
+
+			certificate, err := tls.X509KeyPair(certs.EncodeCertPEM(cert), certs.EncodePrivateKeyPEM(key))
+			if err != nil {
+				return errors.Wrapf(err, "failed to create X509KeyPair for API server %s", podName)
+			}
+			wcl.apiServerServingCertificate = &certificate
 		}
 
-		certificate, err := tls.X509KeyPair(certs.EncodeCertPEM(cert), certs.EncodePrivateKeyPEM(key))
-		if err != nil {
-			return errors.Wrapf(err, "failed to create X509KeyPair for API server %s", podName)
-		}
-		wcl.apiServerServingCertificate = &certificate
-	}
+		// Generate admin certificates to be used for accessing the API server.
+		// NOTE: this is used for tests because CAPI creates its own.
+		if wcl.adminCertificate == nil {
+			config := adminClientCertificateConfig()
+			cert, key, err := newCertAndKey(caCert, caKey, config)
+			if err != nil {
+				return errors.Wrapf(err, "failed to create admin certificate for API server %s", podName)
+			}
 
-	// Generate admin certificates to be used for accessing the API server.
-	// NOTE: this is used for tests because CAPI creates its own.
-	if wcl.adminCertificate == nil {
-		config := adminClientCertificateConfig()
-		cert, key, err := newCertAndKey(caCert, caKey, config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create admin certificate for API server %s", podName)
+			wcl.adminCertificate = cert
+			wcl.adminKey = key
 		}
 
-		wcl.adminCertificate = cert
-		wcl.adminKey = key
-	}
+		// Start the listener for the API server.
+		// NOTE: There is only one listener for all API server instances; the same listener will act
+		// as a port forward target too.
+		if wcl.listener != nil {
+			return nil
+		}
 
-	// Start the listener for the API server.
-	// NOTE: There is only one listener for all API server instances; the same listener will act
-	// as a port forward target too.
-	if wcl.listener != nil {
+		l, err := net.Listen("tcp", wcl.HostPort())
+		if err != nil {
+			return errors.Wrapf(err, "failed to start WorkloadClusterListener %s, %s", wclName, wcl.HostPort())
+		}
+		wcl.listener = l
+
+		go func() {
+			if startServerErr = m.muxServer.ServeTLS(wcl.listener, "", ""); startServerErr != nil && !errors.Is(startServerErr, http.ErrServerClosed) {
+				m.log.Error(startServerErr, "Failed to start WorkloadClusterListener", "listenerName", wclName, "address", wcl.Address())
+			}
+		}()
 		return nil
-	}
-
-	l, err := net.Listen("tcp", wcl.HostPort())
-	if err != nil {
-		return errors.Wrapf(err, "failed to start WorkloadClusterListener %s, %s", wclName, wcl.HostPort())
-	}
-	wcl.listener = l
-
-	var startErr error
-	startCh := make(chan struct{})
-	go func() {
-		startCh <- struct{}{}
-		if err := m.muxServer.ServeTLS(wcl.listener, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			startErr = err
-			m.log.Error(startErr, "Failed to start WorkloadClusterListener", "listenerName", wclName, "address", wcl.Address())
-		}
 	}()
+	if err != nil {
+		return errors.Wrapf(err, "error starting server")
+	}
 
-	<-startCh
-	// TODO: Try to make this race condition free e.g. by checking the listener is answering.
-	// There is no guarantee ServeTLS was called after we received something on the startCh.
-	time.Sleep(100 * time.Millisecond)
+	// Wait until the sever is working.
+	var pollErr error
+	err = wait.PollUntilContextTimeout(context.TODO(), 10*time.Millisecond, 1*time.Second, true, func(ctx context.Context) (done bool, err error) {
+		d := &net.Dialer{Timeout: 50 * time.Millisecond}
+		conn, err := tls.DialWithDialer(d, "tcp", wcl.HostPort(), &tls.Config{
+			InsecureSkipVerify: true, //nolint:gosec // config is used to connect to our own port.
+		})
+		if err != nil {
+			pollErr = fmt.Errorf("server is not reachable: %w", err)
+			return false, nil
+		}
 
-	if startErr != nil {
-		return startErr
+		if err := conn.Close(); err != nil {
+			pollErr = fmt.Errorf("server is not reachable: closing connection: %w", err)
+			return false, nil
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		return kerrors.NewAggregate([]error{err, pollErr})
+	}
+
+	if startServerErr != nil {
+		return startServerErr
 	}
 
 	m.log.Info("WorkloadClusterListener successfully started", "listenerName", wclName, "address", wcl.Address())

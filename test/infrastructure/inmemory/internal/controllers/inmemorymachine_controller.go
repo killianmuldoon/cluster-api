@@ -26,12 +26,15 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,6 +46,7 @@ import (
 	infrav1 "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/api/v1alpha1"
 	"sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud"
 	cloudv1 "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud/api/v1alpha1"
+	cclient "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud/runtime/client"
 	"sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/server"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
@@ -165,15 +169,16 @@ func (r *InMemoryMachineReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 	}()
 
-	// Add finalizer first if not exist to avoid the race condition between init and delete
-	if !controllerutil.ContainsFinalizer(inMemoryMachine, infrav1.MachineFinalizer) {
-		controllerutil.AddFinalizer(inMemoryMachine, infrav1.MachineFinalizer)
-		return ctrl.Result{}, nil
-	}
-
 	// Handle deleted machines
 	if !inMemoryMachine.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, cluster, machine, inMemoryMachine)
+	}
+
+	// Add finalizer first if not set to avoid the race condition between init and delete.
+	// Note: Finalizers in general can only be added when the deletionTimestamp is not set.
+	if !controllerutil.ContainsFinalizer(inMemoryMachine, infrav1.MachineFinalizer) {
+		controllerutil.AddFinalizer(inMemoryMachine, infrav1.MachineFinalizer)
+		return ctrl.Result{}, nil
 	}
 
 	// Handle non-deleted machines
@@ -214,6 +219,8 @@ func (r *InMemoryMachineReconciler) reconcileNormal(ctx context.Context, cluster
 		r.reconcileNormalScheduler,
 		r.reconcileNormalControllerManager,
 		r.reconcileNormalKubeadmObjects,
+		r.reconcileNormalKubeProxy,
+		r.reconcileNormalCoredns,
 	}
 
 	res := ctrl.Result{}
@@ -263,12 +270,14 @@ func (r *InMemoryMachineReconciler) reconcileNormalCloudMachine(ctx context.Cont
 		x := inMemoryMachine.Spec.Behaviour.VM.Provisioning
 
 		provisioningDuration = x.StartupDuration.Duration
-		jitter, err := strconv.ParseFloat(x.StartupJitter, 64)
-		if err != nil {
-			return ctrl.Result{}, errors.Wrapf(err, "failed to parse VM's StartupJitter")
-		}
-		if jitter > 0.0 {
-			provisioningDuration += time.Duration(rand.Float64() * jitter * float64(provisioningDuration)) //nolint:gosec // Intentionally using a weak random number generator here.
+		if x.StartupJitter != "" {
+			jitter, err := strconv.ParseFloat(x.StartupJitter, 64)
+			if err != nil {
+				return ctrl.Result{}, errors.Wrapf(err, "failed to parse VM's StartupJitter")
+			}
+			if jitter > 0.0 {
+				provisioningDuration += time.Duration(rand.Float64() * jitter * float64(provisioningDuration)) //nolint:gosec // Intentionally using a weak random number generator here.
+			}
 		}
 	}
 
@@ -281,6 +290,8 @@ func (r *InMemoryMachineReconciler) reconcileNormalCloudMachine(ctx context.Cont
 
 	// TODO: consider if to surface VM provisioned also on the cloud machine (currently it surfaces only on the inMemoryMachine)
 
+	inMemoryMachine.Spec.ProviderID = pointer.String(calculateProviderID(inMemoryMachine))
+	inMemoryMachine.Status.Ready = true
 	conditions.MarkTrue(inMemoryMachine, infrav1.VMProvisionedCondition)
 	return ctrl.Result{}, nil
 }
@@ -297,12 +308,14 @@ func (r *InMemoryMachineReconciler) reconcileNormalNode(ctx context.Context, clu
 		x := inMemoryMachine.Spec.Behaviour.Node.Provisioning
 
 		provisioningDuration = x.StartupDuration.Duration
-		jitter, err := strconv.ParseFloat(x.StartupJitter, 64)
-		if err != nil {
-			return ctrl.Result{}, errors.Wrapf(err, "failed to parse node's StartupJitter")
-		}
-		if jitter > 0.0 {
-			provisioningDuration += time.Duration(rand.Float64() * jitter * float64(provisioningDuration)) //nolint:gosec // Intentionally using a weak random number generator here.
+		if x.StartupJitter != "" {
+			jitter, err := strconv.ParseFloat(x.StartupJitter, 64)
+			if err != nil {
+				return ctrl.Result{}, errors.Wrapf(err, "failed to parse node's StartupJitter")
+			}
+			if jitter > 0.0 {
+				provisioningDuration += time.Duration(rand.Float64() * jitter * float64(provisioningDuration)) //nolint:gosec // Intentionally using a weak random number generator here.
+			}
 		}
 	}
 
@@ -325,7 +338,7 @@ func (r *InMemoryMachineReconciler) reconcileNormalNode(ctx context.Context, clu
 			Name: inMemoryMachine.Name,
 		},
 		Spec: corev1.NodeSpec{
-			ProviderID: fmt.Sprintf("in-memory://%s", inMemoryMachine.Name),
+			ProviderID: calculateProviderID(inMemoryMachine),
 		},
 		Status: corev1.NodeStatus{
 			Conditions: []corev1.NodeCondition{
@@ -355,11 +368,12 @@ func (r *InMemoryMachineReconciler) reconcileNormalNode(ctx context.Context, clu
 		}
 	}
 
-	inMemoryMachine.Spec.ProviderID = &node.Spec.ProviderID
-	inMemoryMachine.Status.Ready = true
-
 	conditions.MarkTrue(inMemoryMachine, infrav1.NodeProvisionedCondition)
 	return ctrl.Result{}, nil
+}
+
+func calculateProviderID(inMemoryMachine *infrav1.InMemoryMachine) string {
+	return fmt.Sprintf("in-memory://%s", inMemoryMachine.Name)
 }
 
 func (r *InMemoryMachineReconciler) reconcileNormalETCD(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine, inMemoryMachine *infrav1.InMemoryMachine) (ctrl.Result, error) {
@@ -379,12 +393,14 @@ func (r *InMemoryMachineReconciler) reconcileNormalETCD(ctx context.Context, clu
 		x := inMemoryMachine.Spec.Behaviour.Etcd.Provisioning
 
 		provisioningDuration = x.StartupDuration.Duration
-		jitter, err := strconv.ParseFloat(x.StartupJitter, 64)
-		if err != nil {
-			return ctrl.Result{}, errors.Wrapf(err, "failed to parse etcd's StartupJitter")
-		}
-		if jitter > 0.0 {
-			provisioningDuration += time.Duration(rand.Float64() * jitter * float64(provisioningDuration)) //nolint:gosec // Intentionally using a weak random number generator here.
+		if x.StartupJitter != "" {
+			jitter, err := strconv.ParseFloat(x.StartupJitter, 64)
+			if err != nil {
+				return ctrl.Result{}, errors.Wrapf(err, "failed to parse etcd's StartupJitter")
+			}
+			if jitter > 0.0 {
+				provisioningDuration += time.Duration(rand.Float64() * jitter * float64(provisioningDuration)) //nolint:gosec // Intentionally using a weak random number generator here.
+			}
 		}
 	}
 
@@ -411,13 +427,9 @@ func (r *InMemoryMachineReconciler) reconcileNormalETCD(ctx context.Context, clu
 				"component": "etcd",
 				"tier":      "control-plane",
 			},
-			Annotations: map[string]string{
-				// TODO: read this from existing etcd pods, if any, otherwise all the member will get a different ClusterID.
-				"etcd.inmemory.infrastructure.cluster.x-k8s.io/cluster-id": fmt.Sprintf("%d", rand.Uint32()), //nolint:gosec // weak random number generator is good enough here
-				"etcd.inmemory.infrastructure.cluster.x-k8s.io/member-id":  fmt.Sprintf("%d", rand.Uint32()), //nolint:gosec // weak random number generator is good enough here
-				// TODO: set this only if there are no other leaders.
-				"etcd.inmemory.infrastructure.cluster.x-k8s.io/leader-from": time.Now().Format(time.RFC3339),
-			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: inMemoryMachine.Name,
 		},
 		Status: corev1.PodStatus{
 			Phase: corev1.PodRunning,
@@ -432,6 +444,42 @@ func (r *InMemoryMachineReconciler) reconcileNormalETCD(ctx context.Context, clu
 	if err := cloudClient.Get(ctx, client.ObjectKeyFromObject(etcdPod), etcdPod); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, errors.Wrapf(err, "failed to get etcd Pod")
+		}
+
+		// Gets info about the current etcd cluster, if any.
+		info, err := r.getEtcdInfo(ctx, cloudClient)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		// If this is the first etcd member in the cluster, assign a cluster ID
+		if info.clusterID == "" {
+			for {
+				info.clusterID = fmt.Sprintf("%d", rand.Uint32()) //nolint:gosec // weak random number generator is good enough here
+				if info.clusterID != "0" {
+					break
+				}
+			}
+		}
+
+		// Computes a unique memberID.
+		var memberID string
+		for {
+			memberID = fmt.Sprintf("%d", rand.Uint32()) //nolint:gosec // weak random number generator is good enough here
+			if !info.members.Has(memberID) && memberID != "0" {
+				break
+			}
+		}
+
+		// Annotate the pod with the info about the etcd cluster.
+		etcdPod.Annotations = map[string]string{
+			cloudv1.EtcdClusterIDAnnotationName: info.clusterID,
+			cloudv1.EtcdMemberIDAnnotationName:  memberID,
+		}
+
+		// If the etcd cluster is being created it doesn't have a leader yet, so set this member as a leader.
+		if info.leaderID == "" {
+			etcdPod.Annotations[cloudv1.EtcdLeaderFromAnnotationName] = time.Now().Format(time.RFC3339)
 		}
 
 		// NOTE: for the first control plane machine we might create the etcd pod before the API server pod is running
@@ -477,6 +525,61 @@ func (r *InMemoryMachineReconciler) reconcileNormalETCD(ctx context.Context, clu
 	return ctrl.Result{}, nil
 }
 
+type etcdInfo struct {
+	clusterID string
+	leaderID  string
+	members   sets.Set[string]
+}
+
+func (r *InMemoryMachineReconciler) getEtcdInfo(ctx context.Context, cloudClient cclient.Client) (etcdInfo, error) {
+	etcdPods := &corev1.PodList{}
+	if err := cloudClient.List(ctx, etcdPods,
+		client.InNamespace(metav1.NamespaceSystem),
+		client.MatchingLabels{
+			"component": "etcd",
+			"tier":      "control-plane"},
+	); err != nil {
+		return etcdInfo{}, errors.Wrap(err, "failed to list etcd members")
+	}
+
+	if len(etcdPods.Items) == 0 {
+		return etcdInfo{}, nil
+	}
+
+	info := etcdInfo{
+		members: sets.New[string](),
+	}
+	var leaderFrom time.Time
+	for _, pod := range etcdPods.Items {
+		if _, ok := pod.Annotations[cloudv1.EtcdMemberRemoved]; ok {
+			continue
+		}
+		if info.clusterID == "" {
+			info.clusterID = pod.Annotations[cloudv1.EtcdClusterIDAnnotationName]
+		} else if pod.Annotations[cloudv1.EtcdClusterIDAnnotationName] != info.clusterID {
+			return etcdInfo{}, errors.New("invalid etcd cluster, members have different cluster ID")
+		}
+		memberID := pod.Annotations[cloudv1.EtcdMemberIDAnnotationName]
+		info.members.Insert(memberID)
+
+		if t, err := time.Parse(time.RFC3339, pod.Annotations[cloudv1.EtcdLeaderFromAnnotationName]); err == nil {
+			if t.After(leaderFrom) {
+				info.leaderID = memberID
+				leaderFrom = t
+			}
+		}
+	}
+
+	if info.leaderID == "" {
+		// TODO: consider if and how to automatically recover from this case
+		//  note: this can happen also when reading etcd members in the server, might be it is something we have to take case before deletion...
+		//  for now it should not be an issue because KCP forward etcd leadership before deletion.
+		return etcdInfo{}, errors.New("invalid etcd cluster, no leader found")
+	}
+
+	return info, nil
+}
+
 func (r *InMemoryMachineReconciler) reconcileNormalAPIServer(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine, inMemoryMachine *infrav1.InMemoryMachine) (ctrl.Result, error) {
 	// No-op if the machine is not a control plane machine.
 	if !util.IsControlPlaneMachine(machine) {
@@ -494,12 +597,14 @@ func (r *InMemoryMachineReconciler) reconcileNormalAPIServer(ctx context.Context
 		x := inMemoryMachine.Spec.Behaviour.APIServer.Provisioning
 
 		provisioningDuration = x.StartupDuration.Duration
-		jitter, err := strconv.ParseFloat(x.StartupJitter, 64)
-		if err != nil {
-			return ctrl.Result{}, errors.Wrapf(err, "failed to parse API server's StartupJitter")
-		}
-		if jitter > 0.0 {
-			provisioningDuration += time.Duration(rand.Float64() * jitter * float64(provisioningDuration)) //nolint:gosec // Intentionally using a weak random number generator here.
+		if x.StartupJitter != "" {
+			jitter, err := strconv.ParseFloat(x.StartupJitter, 64)
+			if err != nil {
+				return ctrl.Result{}, errors.Wrapf(err, "failed to parse API server's StartupJitter")
+			}
+			if jitter > 0.0 {
+				provisioningDuration += time.Duration(rand.Float64() * jitter * float64(provisioningDuration)) //nolint:gosec // Intentionally using a weak random number generator here.
+			}
 		}
 	}
 
@@ -527,6 +632,9 @@ func (r *InMemoryMachineReconciler) reconcileNormalAPIServer(ctx context.Context
 				"component": "kube-apiserver",
 				"tier":      "control-plane",
 			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: inMemoryMachine.Name,
 		},
 		Status: corev1.PodStatus{
 			Phase: corev1.PodRunning,
@@ -614,6 +722,9 @@ func (r *InMemoryMachineReconciler) reconcileNormalScheduler(ctx context.Context
 				"tier":      "control-plane",
 			},
 		},
+		Spec: corev1.PodSpec{
+			NodeName: inMemoryMachine.Name,
+		},
 		Status: corev1.PodStatus{
 			Phase: corev1.PodRunning,
 			Conditions: []corev1.PodCondition{
@@ -658,6 +769,9 @@ func (r *InMemoryMachineReconciler) reconcileNormalControllerManager(ctx context
 				"component": "kube-controller-manager",
 				"tier":      "control-plane",
 			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: inMemoryMachine.Name,
 		},
 		Status: corev1.PodStatus{
 			Phase: corev1.PodRunning,
@@ -733,11 +847,125 @@ func (r *InMemoryMachineReconciler) reconcileNormalKubeadmObjects(ctx context.Co
 			Name:      "kubeadm-config",
 			Namespace: metav1.NamespaceSystem,
 		},
+		Data: map[string]string{
+			"ClusterConfiguration": "",
+		},
 	}
 	if err := cloudClient.Create(ctx, cm); err != nil && !apierrors.IsAlreadyExists(err) {
-		return ctrl.Result{}, errors.Wrapf(err, "failed to create ubeadm-config ConfigMap")
+		return ctrl.Result{}, errors.Wrapf(err, "failed to create kubeadm-config ConfigMap")
 	}
 
+	return ctrl.Result{}, nil
+}
+
+func (r *InMemoryMachineReconciler) reconcileNormalKubeProxy(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine, _ *infrav1.InMemoryMachine) (ctrl.Result, error) {
+	// No-op if the machine is not a control plane machine.
+	if !util.IsControlPlaneMachine(machine) {
+		return ctrl.Result{}, nil
+	}
+
+	// TODO: Add provisioning time for KubeProxy.
+
+	// Compute the resource group unique name.
+	// NOTE: We are using reconcilerGroup also as a name for the listener for sake of simplicity.
+	resourceGroup := klog.KObj(cluster).String()
+	cloudClient := r.CloudManager.GetResourceGroup(resourceGroup).GetClient()
+
+	// Create the kube-proxy-daemonset
+	kubeProxyDaemonSet := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: metav1.NamespaceSystem,
+			Name:      "kube-proxy",
+			Labels: map[string]string{
+				"component": "kube-proxy",
+			},
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "kube-proxy",
+							Image: fmt.Sprintf("registry.k8s.io/kube-proxy:%s", *machine.Spec.Version),
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := cloudClient.Get(ctx, client.ObjectKeyFromObject(kubeProxyDaemonSet), kubeProxyDaemonSet); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, errors.Wrapf(err, "failed to get kube-proxy DaemonSet")
+		}
+
+		if err := cloudClient.Create(ctx, kubeProxyDaemonSet); err != nil && !apierrors.IsAlreadyExists(err) {
+			return ctrl.Result{}, errors.Wrapf(err, "failed to create kube-proxy DaemonSet")
+		}
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *InMemoryMachineReconciler) reconcileNormalCoredns(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine, _ *infrav1.InMemoryMachine) (ctrl.Result, error) {
+	// No-op if the machine is not a control plane machine.
+	if !util.IsControlPlaneMachine(machine) {
+		return ctrl.Result{}, nil
+	}
+
+	// TODO: Add provisioning time for CoreDNS.
+
+	// Compute the resource group unique name.
+	// NOTE: We are using reconcilerGroup also as a name for the listener for sake of simplicity.
+	resourceGroup := klog.KObj(cluster).String()
+	cloudClient := r.CloudManager.GetResourceGroup(resourceGroup).GetClient()
+
+	// Create the coredns configMap.
+	corednsConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: metav1.NamespaceSystem,
+			Name:      "coredns",
+		},
+		Data: map[string]string{
+			"Corefile": "ANG",
+		},
+	}
+	if err := cloudClient.Get(ctx, client.ObjectKeyFromObject(corednsConfigMap), corednsConfigMap); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, errors.Wrapf(err, "failed to get coreDNS configMap")
+		}
+
+		if err := cloudClient.Create(ctx, corednsConfigMap); err != nil && !apierrors.IsAlreadyExists(err) {
+			return ctrl.Result{}, errors.Wrapf(err, "failed to create coreDNS configMap")
+		}
+	}
+	// Create the coredns deployment.
+	corednsDeployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: metav1.NamespaceSystem,
+			Name:      "coredns",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "coredns",
+							Image: "registry.k8s.io/coredns/coredns:v1.10.1",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := cloudClient.Get(ctx, client.ObjectKeyFromObject(corednsDeployment), corednsDeployment); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, errors.Wrapf(err, "failed to get coreDNS deployment")
+		}
+
+		if err := cloudClient.Create(ctx, corednsDeployment); err != nil && !apierrors.IsAlreadyExists(err) {
+			return ctrl.Result{}, errors.Wrapf(err, "failed to create coreDNS deployment")
+		}
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -803,6 +1031,8 @@ func (r *InMemoryMachineReconciler) reconcileDeleteNode(ctx context.Context, clu
 			Name: inMemoryMachine.Name,
 		},
 	}
+
+	// TODO(killianmuldoon): check if we can drop this given that the MachineController is already draining pods and deleting nodes.
 	if err := cloudClient.Delete(ctx, node); err != nil && !apierrors.IsNotFound(err) {
 		return ctrl.Result{}, errors.Wrapf(err, "failed to delete Node")
 	}
@@ -921,7 +1151,7 @@ func (r *InMemoryMachineReconciler) reconcileDeleteControllerManager(ctx context
 
 // SetupWithManager will add watches for this controller.
 func (r *InMemoryMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
-	clusterToInMemoryMachines, err := util.ClusterToObjectsMapper(mgr.GetClient(), &infrav1.InMemoryMachineList{}, mgr.GetScheme())
+	clusterToInMemoryMachines, err := util.ClusterToTypedObjectsMapper(mgr.GetClient(), &infrav1.InMemoryMachineList{}, mgr.GetScheme())
 	if err != nil {
 		return err
 	}

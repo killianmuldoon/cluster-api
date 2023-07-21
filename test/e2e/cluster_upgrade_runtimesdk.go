@@ -62,6 +62,13 @@ type clusterUpgradeWithRuntimeSDKSpecInput struct {
 	ArtifactFolder        string
 	SkipCleanup           bool
 
+	// InfrastructureProviders specifies the infrastructure to use for clusterctl
+	// operations (Example: get cluster templates).
+	// Note: In most cases this need not be specified. It only needs to be specified when
+	// multiple infrastructure providers (ex: CAPD + in-memory) are installed on the cluster as clusterctl will not be
+	// able to identify the default.
+	InfrastructureProvider *string
+
 	// ControlPlaneMachineCount is used in `config cluster` to configure the count of the control plane machines used in the test.
 	// Default is 1.
 	ControlPlaneMachineCount *int64
@@ -150,13 +157,18 @@ func clusterUpgradeWithRuntimeSDKSpec(ctx context.Context, inputGetter func() cl
 			Namespace: namespace.Name,
 		}
 
+		infrastructureProvider := clusterctl.DefaultInfrastructureProvider
+		if input.InfrastructureProvider != nil {
+			infrastructureProvider = *input.InfrastructureProvider
+		}
+
 		clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
 			ClusterProxy: input.BootstrapClusterProxy,
 			ConfigCluster: clusterctl.ConfigClusterInput{
 				LogFolder:                filepath.Join(input.ArtifactFolder, "clusters", input.BootstrapClusterProxy.GetName()),
 				ClusterctlConfigPath:     input.ClusterctlConfigPath,
 				KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
-				InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
+				InfrastructureProvider:   infrastructureProvider,
 				Flavor:                   pointer.StringDeref(input.Flavor, "upgrades"),
 				Namespace:                namespace.Name,
 				ClusterName:              clusterName,
@@ -320,7 +332,7 @@ func machineSetPreflightChecksTestHandler(ctx context.Context, c client.Client, 
 	// Note: It is fair to assume that the Cluster is ClusterClass based since RuntimeSDK
 	// is only supported for ClusterClass based Clusters.
 	patchHelper, err := patch.NewHelper(md, c)
-	Expect(err).To(BeNil())
+	Expect(err).ToNot(HaveOccurred())
 
 	// Scale up the MachineDeployment.
 	// IMPORTANT: Since the MachineDeployment is pending an upgrade at this point the topology controller will not push any changes
@@ -342,7 +354,7 @@ func machineSetPreflightChecksTestHandler(ctx context.Context, c client.Client, 
 		}).Should(Succeed(), "Failed to get MachineDeployment %s", klog.KObj(md))
 		// Verify replicas are not overridden.
 		g.Expect(targetMD.Spec.Replicas).To(Equal(md.Spec.Replicas))
-	}, 10*time.Second, 1*time.Second)
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	// Since the MachineDeployment is scaled up (overriding the topology controller) at this point the MachineSet would
 	// also scale up. However, a new Machine creation would be blocked by one of the MachineSet preflight checks (KubeadmVersionSkew).
@@ -372,12 +384,12 @@ func machineSetPreflightChecksTestHandler(ctx context.Context, c client.Client, 
 			MachineDeployment: *md,
 		})
 		g.Expect(machines).To(HaveLen(originalReplicas), "New Machines should not be created")
-	}, 10*time.Second, time.Second)
+	}, 10*time.Second, time.Second).Should(Succeed())
 
 	// Scale down the MachineDeployment to the original replicas to restore to the state of the MachineDeployment
 	// it existed in before this test block.
 	patchHelper, err = patch.NewHelper(md, c)
-	Expect(err).To(BeNil())
+	Expect(err).ToNot(HaveOccurred())
 	*md.Spec.Replicas--
 	Eventually(func() error {
 		return patchHelper.Patch(ctx, md)

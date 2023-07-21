@@ -35,10 +35,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api/internal/test/builder"
+	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/kubeconfig"
+	"sigs.k8s.io/cluster-api/util/labels/format"
 )
 
 const (
@@ -127,7 +130,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -156,7 +159,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -173,17 +176,17 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 
 		// Set bootstrap ready.
 		err := unstructured.SetNestedField(bootstrapConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(bootstrapConfig.Object, "secret-data", "status", "dataSecretName")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		r := &MachinePoolReconciler{
 			Client: fake.NewClientBuilder().WithObjects(defaultCluster, defaultKubeconfigSecret, machinepool, bootstrapConfig, infraConfig, builder.TestBootstrapConfigCRD, builder.TestInfrastructureMachineTemplateCRD).Build(),
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -200,23 +203,23 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 
 		// Set bootstrap ready.
 		err := unstructured.SetNestedField(bootstrapConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(bootstrapConfig.Object, "secret-data", "status", "dataSecretName")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set infra ready.
 		err = unstructured.SetNestedField(infraConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, int64(1), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedStringSlice(infraConfig.Object, []string{"test://machinepool-test-node"}, "spec", "providerIDList")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, "us-east-2a", "spec", "failureDomain")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set NodeRef.
 		machinepool.Status.NodeRefs = []corev1.ObjectReference{{Kind: "Node", Name: "machinepool-test-node"}}
@@ -228,7 +231,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		// Set ReadyReplicas
@@ -248,20 +251,20 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 
 		// Set bootstrap ready.
 		err := unstructured.SetNestedField(bootstrapConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(bootstrapConfig.Object, "secret-data", "status", "dataSecretName")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set infra ready.
 		err = unstructured.SetNestedStringSlice(infraConfig.Object, []string{"test://id-1"}, "spec", "providerIDList")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, int64(1), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, []interface{}{
 			map[string]interface{}{
@@ -273,7 +276,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 				"address": "10.0.0.2",
 			},
 		}, "addresses")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set NodeRef.
 		machinepool.Status.NodeRefs = []corev1.ObjectReference{{Kind: "Node", Name: "machinepool-test-node"}}
@@ -285,7 +288,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		// Set ReadyReplicas
@@ -305,10 +308,10 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 
 		// Set bootstrap ready.
 		err := unstructured.SetNestedField(bootstrapConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(bootstrapConfig.Object, "secret-data", "status", "dataSecretName")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set NodeRef.
 		machinepool.Status.NodeRefs = []corev1.ObjectReference{{Kind: "Node", Name: "machinepool-test-node"}}
@@ -318,7 +321,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -335,20 +338,20 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 
 		// Set bootstrap ready.
 		err := unstructured.SetNestedField(bootstrapConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(bootstrapConfig.Object, "secret-data", "status", "dataSecretName")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set infra ready.
 		err = unstructured.SetNestedStringSlice(infraConfig.Object, []string{"test://id-1"}, "spec", "providerIDList")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, int64(1), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set NodeRef.
 		machinepool.Status.NodeRefs = []corev1.ObjectReference{{Kind: "Node", Name: "machinepool-test-node"}}
@@ -360,7 +363,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		// Set ReadyReplicas
@@ -383,20 +386,20 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 
 		// Set bootstrap ready.
 		err := unstructured.SetNestedField(bootstrapConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(bootstrapConfig.Object, "secret-data", "status", "dataSecretName")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set infra ready.
 		err = unstructured.SetNestedStringSlice(infraConfig.Object, []string{"test://id-1"}, "spec", "providerIDList")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, int64(4), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		machinepool.Spec.Replicas = pointer.Int32(4)
 
@@ -415,7 +418,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		// Set ReadyReplicas
@@ -438,17 +441,17 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 
 		// Set bootstrap ready.
 		err := unstructured.SetNestedField(bootstrapConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(bootstrapConfig.Object, "secret-data", "status", "dataSecretName")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set infra ready.
 		err = unstructured.SetNestedStringSlice(infraConfig.Object, []string{"test://id-1"}, "spec", "providerIDList")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, true, "status", "ready")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		err = unstructured.SetNestedField(infraConfig.Object, []interface{}{
 			map[string]interface{}{
@@ -460,7 +463,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 				"address": "10.0.0.2",
 			},
 		}, "addresses")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// Set NodeRef.
 		machinepool.Status.NodeRefs = []corev1.ObjectReference{{Kind: "Node", Name: "machinepool-test-node"}}
@@ -474,7 +477,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, defaultCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -756,9 +759,9 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 			res, err := r.reconcileBootstrap(ctx, defaultCluster, tc.machinepool)
 			g.Expect(res).To(Equal(tc.expectResult))
 			if tc.expectError {
-				g.Expect(err).ToNot(BeNil())
+				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(err).To(BeNil())
+				g.Expect(err).ToNot(HaveOccurred())
 			}
 
 			if tc.expected != nil {
@@ -1049,13 +1052,450 @@ func TestReconcileMachinePoolInfrastructure(t *testing.T) {
 			}
 			r.reconcilePhase(tc.machinepool)
 			if tc.expectError {
-				g.Expect(err).ToNot(BeNil())
+				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(err).To(BeNil())
+				g.Expect(err).ToNot(HaveOccurred())
 			}
 
 			if tc.expected != nil {
 				tc.expected(g, tc.machinepool)
+			}
+		})
+	}
+}
+
+func TestReconcileMachinePoolMachines(t *testing.T) {
+	defaultCluster := clusterv1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      clusterName,
+			Namespace: metav1.NamespaceDefault,
+		},
+	}
+
+	defaultMachinePool := expv1.MachinePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machinepool-test",
+			Namespace: metav1.NamespaceDefault,
+			Labels: map[string]string{
+				clusterv1.ClusterNameLabel: defaultCluster.Name,
+			},
+		},
+		Spec: expv1.MachinePoolSpec{
+			ClusterName: defaultCluster.Name,
+			Replicas:    pointer.Int32(2),
+			Template: clusterv1.MachineTemplateSpec{
+				Spec: clusterv1.MachineSpec{
+					Bootstrap: clusterv1.Bootstrap{
+						ConfigRef: &corev1.ObjectReference{
+							APIVersion: "bootstrap.cluster.x-k8s.io/v1beta1",
+							Kind:       "BootstrapConfig",
+							Name:       "bootstrap-config1",
+						},
+					},
+					InfrastructureRef: corev1.ObjectReference{
+						APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
+						Kind:       "InfrastructureConfig",
+						Name:       "infra-config1",
+					},
+				},
+			},
+		},
+	}
+
+	infraMachine1 := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind":       "InfrastructureMachine",
+			"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+			"metadata": map[string]interface{}{
+				"name":      "infra-machine1",
+				"namespace": metav1.NamespaceDefault,
+				"labels": map[string]interface{}{
+					clusterv1.ClusterNameLabel:     defaultCluster.Name,
+					clusterv1.MachinePoolNameLabel: defaultMachinePool.Name,
+				},
+			},
+		},
+	}
+
+	infraMachine2 := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind":       "InfrastructureMachine",
+			"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+			"metadata": map[string]interface{}{
+				"name":      "infra-machine2",
+				"namespace": metav1.NamespaceDefault,
+				"labels": map[string]interface{}{
+					clusterv1.ClusterNameLabel:     defaultCluster.Name,
+					clusterv1.MachinePoolNameLabel: defaultMachinePool.Name,
+				},
+			},
+		},
+	}
+
+	machine1 := clusterv1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine1",
+			Namespace: metav1.NamespaceDefault,
+			Labels: map[string]string{
+				clusterv1.ClusterNameLabel:     defaultCluster.Name,
+				clusterv1.MachinePoolNameLabel: "machinepool-test",
+			},
+		},
+		Spec: clusterv1.MachineSpec{
+			ClusterName: clusterName,
+			InfrastructureRef: corev1.ObjectReference{
+				APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
+				Kind:       "InfrastructureMachine",
+				Name:       "infra-machine1",
+				Namespace:  metav1.NamespaceDefault,
+			},
+		},
+	}
+
+	machine2 := clusterv1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine2",
+			Namespace: metav1.NamespaceDefault,
+			Labels: map[string]string{
+				clusterv1.ClusterNameLabel:     defaultCluster.Name,
+				clusterv1.MachinePoolNameLabel: "machinepool-test",
+			},
+		},
+		Spec: clusterv1.MachineSpec{
+			ClusterName: clusterName,
+			InfrastructureRef: corev1.ObjectReference{
+				APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
+				Kind:       "InfrastructureMachine",
+				Name:       "infra-machine2",
+				Namespace:  metav1.NamespaceDefault,
+			},
+		},
+	}
+
+	testCases := []struct {
+		name                        string
+		bootstrapConfig             map[string]interface{}
+		infraConfig                 map[string]interface{}
+		machines                    []clusterv1.Machine
+		infraMachines               []unstructured.Unstructured
+		machinepool                 *expv1.MachinePool
+		expectError                 bool
+		supportsMachinePoolMachines bool
+	}{
+		{
+			name: "two infra machines, should create two machinepool machines",
+			infraConfig: map[string]interface{}{
+				"kind":       "InfrastructureConfig",
+				"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+				"metadata": map[string]interface{}{
+					"name":      "infra-config1",
+					"namespace": metav1.NamespaceDefault,
+				},
+				"spec": map[string]interface{}{
+					"providerIDList": []interface{}{
+						"test://id-1",
+					},
+				},
+				"status": map[string]interface{}{
+					"ready": true,
+					"addresses": []interface{}{
+						map[string]interface{}{
+							"type":    "InternalIP",
+							"address": "10.0.0.1",
+						},
+						map[string]interface{}{
+							"type":    "InternalIP",
+							"address": "10.0.0.2",
+						},
+					},
+					"infrastructureMachineKind": "InfrastructureMachine",
+				},
+			},
+			infraMachines: []unstructured.Unstructured{
+				infraMachine1,
+				infraMachine2,
+			},
+			expectError:                 false,
+			supportsMachinePoolMachines: true,
+		},
+		{
+			name: "two infra machines and two machinepool machines, nothing to do",
+			infraConfig: map[string]interface{}{
+				"kind":       "InfrastructureConfig",
+				"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+				"metadata": map[string]interface{}{
+					"name":      "infra-config1",
+					"namespace": metav1.NamespaceDefault,
+				},
+				"spec": map[string]interface{}{
+					"providerIDList": []interface{}{
+						"test://id-1",
+					},
+				},
+				"status": map[string]interface{}{
+					"ready": true,
+					"addresses": []interface{}{
+						map[string]interface{}{
+							"type":    "InternalIP",
+							"address": "10.0.0.1",
+						},
+						map[string]interface{}{
+							"type":    "InternalIP",
+							"address": "10.0.0.2",
+						},
+					},
+					"infrastructureMachineKind": "InfrastructureMachine",
+				},
+			},
+			machines: []clusterv1.Machine{
+				machine1,
+				machine2,
+			},
+			infraMachines: []unstructured.Unstructured{
+				infraMachine1,
+				infraMachine2,
+			},
+			expectError:                 false,
+			supportsMachinePoolMachines: true,
+		},
+		{
+			name: "machinepool does not support machinepool machines, nothing to do",
+			infraConfig: map[string]interface{}{
+				"kind":       "InfrastructureConfig",
+				"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+				"metadata": map[string]interface{}{
+					"name":      "infra-config1",
+					"namespace": metav1.NamespaceDefault,
+				},
+				"spec": map[string]interface{}{
+					"providerIDList": []interface{}{
+						"test://id-1",
+					},
+				},
+				"status": map[string]interface{}{
+					"ready": true,
+					"addresses": []interface{}{
+						map[string]interface{}{
+							"type":    "InternalIP",
+							"address": "10.0.0.1",
+						},
+						map[string]interface{}{
+							"type":    "InternalIP",
+							"address": "10.0.0.2",
+						},
+					},
+				},
+			},
+			expectError:                 false,
+			supportsMachinePoolMachines: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			if tc.machinepool == nil {
+				tc.machinepool = defaultMachinePool.DeepCopy()
+			}
+
+			objs := []client.Object{defaultCluster.DeepCopy()}
+			infraConfig := &unstructured.Unstructured{Object: tc.infraConfig}
+			objs = append(objs, tc.machinepool, infraConfig.DeepCopy())
+
+			for _, infraMachine := range tc.infraMachines {
+				objs = append(objs, infraMachine.DeepCopy())
+			}
+
+			for _, machine := range tc.machines {
+				objs = append(objs, machine.DeepCopy())
+			}
+
+			r := &MachinePoolReconciler{
+				Client: fake.NewClientBuilder().WithObjects(objs...).Build(),
+			}
+
+			err := r.reconcileMachines(ctx, tc.machinepool, infraConfig)
+
+			r.reconcilePhase(tc.machinepool)
+			if tc.expectError {
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+
+				machineList := &clusterv1.MachineList{}
+				labels := map[string]string{
+					clusterv1.ClusterNameLabel:     defaultCluster.Name,
+					clusterv1.MachinePoolNameLabel: tc.machinepool.Name,
+				}
+				err := r.Client.List(ctx, machineList, client.InNamespace(tc.machinepool.Namespace), client.MatchingLabels(labels))
+				g.Expect(err).ToNot(HaveOccurred())
+
+				if tc.supportsMachinePoolMachines {
+					g.Expect(machineList.Items).To(HaveLen(len(tc.infraMachines)))
+					for i := range machineList.Items {
+						machine := &machineList.Items[i]
+						infraMachine, err := external.Get(ctx, r.Client, &machine.Spec.InfrastructureRef, machine.Namespace)
+						g.Expect(err).ToNot(HaveOccurred())
+
+						g.Expect(util.IsControlledBy(infraMachine, machine)).To(BeTrue())
+					}
+				} else {
+					g.Expect(machineList.Items).To(BeEmpty())
+				}
+			}
+		})
+	}
+}
+
+func TestInfraMachineToMachinePoolMapper(t *testing.T) {
+	machinePool1 := expv1.MachinePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machinepool-1",
+			Namespace: metav1.NamespaceDefault,
+			Labels: map[string]string{
+				clusterv1.ClusterNameLabel: clusterName,
+			},
+		},
+	}
+
+	machinePool2 := expv1.MachinePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machinepool-2",
+			Namespace: "other-namespace",
+			Labels: map[string]string{
+				clusterv1.ClusterNameLabel: clusterName,
+			},
+		},
+	}
+
+	machinePool3 := expv1.MachinePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machinepool-3",
+			Namespace: metav1.NamespaceDefault,
+			Labels: map[string]string{
+				clusterv1.ClusterNameLabel: "other-cluster",
+			},
+		},
+	}
+
+	machinePoolLongName := expv1.MachinePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machinepool-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-long", // Use a name longer than 64 characters to trigger a hash
+			Namespace: metav1.NamespaceDefault,
+			Labels: map[string]string{
+				clusterv1.ClusterNameLabel: "other-cluster",
+			},
+		},
+	}
+
+	infraMachine1 := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind":       "InfrastructureMachine",
+			"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+			"metadata": map[string]interface{}{
+				"name":      "infra-machine1",
+				"namespace": metav1.NamespaceDefault,
+				"labels": map[string]interface{}{
+					clusterv1.ClusterNameLabel:     clusterName,
+					clusterv1.MachinePoolNameLabel: format.MustFormatValue(machinePool1.Name),
+				},
+			},
+		},
+	}
+
+	infraMachine2 := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind":       "InfrastructureMachine",
+			"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+			"metadata": map[string]interface{}{
+				"name":      "infra-machine2",
+				"namespace": metav1.NamespaceDefault,
+				"labels": map[string]interface{}{
+					clusterv1.ClusterNameLabel:     "other-cluster",
+					clusterv1.MachinePoolNameLabel: format.MustFormatValue(machinePoolLongName.Name),
+				},
+			},
+		},
+	}
+
+	infraMachine3 := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind":       "InfrastructureMachine",
+			"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+			"metadata": map[string]interface{}{
+				"name":      "infra-machine3",
+				"namespace": metav1.NamespaceDefault,
+				"labels": map[string]interface{}{
+					clusterv1.ClusterNameLabel:     "other-cluster",
+					clusterv1.MachinePoolNameLabel: format.MustFormatValue("missing-machinepool"),
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name                string
+		infraMachine        *unstructured.Unstructured
+		machinepools        []expv1.MachinePool
+		expectedMachinePool *expv1.MachinePool
+	}{
+		{
+			name:         "match machinePool name with label value",
+			infraMachine: &infraMachine1,
+			machinepools: []expv1.MachinePool{
+				machinePool1,
+				machinePool2,
+				machinePool3,
+				machinePoolLongName,
+			},
+			expectedMachinePool: &machinePool1,
+		},
+		{
+			name:         "match hash of machinePool name with label hash",
+			infraMachine: &infraMachine2,
+			machinepools: []expv1.MachinePool{
+				machinePool1,
+				machinePool2,
+				machinePool3,
+				machinePoolLongName,
+			},
+			expectedMachinePool: &machinePoolLongName,
+		},
+		{
+			name:         "return nil if no machinePool matches",
+			infraMachine: &infraMachine3,
+			machinepools: []expv1.MachinePool{
+				machinePool1,
+				machinePool2,
+				machinePool3,
+				machinePoolLongName,
+			},
+			expectedMachinePool: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			objs := []client.Object{tc.infraMachine.DeepCopy()}
+
+			for _, mp := range tc.machinepools {
+				objs = append(objs, mp.DeepCopy())
+			}
+
+			r := &MachinePoolReconciler{
+				Client: fake.NewClientBuilder().WithObjects(objs...).Build(),
+			}
+
+			result := r.infraMachineToMachinePoolMapper(ctx, tc.infraMachine)
+			if tc.expectedMachinePool == nil {
+				g.Expect(result).To(BeNil())
+			} else {
+				g.Expect(result).To(HaveLen(1))
+				g.Expect(result[0].Name).To(Equal(tc.expectedMachinePool.Name))
+				g.Expect(result[0].Namespace).To(Equal(tc.expectedMachinePool.Namespace))
 			}
 		})
 	}
@@ -1074,7 +1514,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 			Namespace:    ns.Name,
 		},
 	}
-	g.Expect(env.Create(ctx, testCluster)).To(BeNil())
+	g.Expect(env.Create(ctx, testCluster)).To(Succeed())
 	g.Expect(env.CreateKubeconfigSecret(ctx, testCluster)).To(Succeed())
 	defer func(do ...client.Object) {
 		g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
@@ -1154,7 +1594,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 				},
 			},
 		}
-		g.Expect(env.Create(ctx, node)).To(BeNil())
+		g.Expect(env.Create(ctx, node)).To(Succeed())
 		defer func(do ...client.Object) {
 			g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
 		}(node)
@@ -1174,11 +1614,11 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 
 		// set infra providerIDList
 		err = unstructured.SetNestedStringSlice(infraConfig.Object, []string{"test://machinepool-test-node"}, "spec", "providerIDList")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// set infra replicas
 		err = unstructured.SetNestedField(infraConfig.Object, int64(1), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		fakeClient := fake.NewClientBuilder().WithObjects(testCluster, kubeconfigSecret, machinepool, bootstrapConfig, infraConfig, builder.TestBootstrapConfigCRD, builder.TestInfrastructureMachineTemplateCRD).Build()
 		r := &MachinePoolReconciler{
@@ -1188,7 +1628,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, testCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -1196,7 +1636,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 		g.Expect(machinepool.Status.GetTypedPhase()).To(Equal(expv1.MachinePoolPhaseScalingDown))
 
 		delNode := &corev1.Node{}
-		g.Expect(env.Get(ctx, client.ObjectKeyFromObject(node), delNode)).To(BeNil())
+		g.Expect(env.Get(ctx, client.ObjectKeyFromObject(node), delNode)).To(Succeed())
 	})
 
 	t.Run("Should delete retired nodes when scaled to zero", func(t *testing.T) {
@@ -1215,7 +1655,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 				},
 			},
 		}
-		g.Expect(env.Create(ctx, node)).To(BeNil())
+		g.Expect(env.CreateAndWait(ctx, node)).To(Succeed())
 		defer func(do ...client.Object) {
 			g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
 		}(node)
@@ -1235,7 +1675,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 
 		// set infra replicas
 		err = unstructured.SetNestedField(infraConfig.Object, int64(0), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		fakeClient := fake.NewClientBuilder().WithObjects(testCluster, kubeconfigSecret, machinepool, bootstrapConfig, infraConfig, builder.TestBootstrapConfigCRD, builder.TestInfrastructureMachineTemplateCRD).Build()
 		r := &MachinePoolReconciler{
@@ -1245,16 +1685,15 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, testCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
-
 		g.Expect(machinepool.Status.GetTypedPhase()).To(Equal(expv1.MachinePoolPhaseRunning))
 
 		delNode := &corev1.Node{}
 		err = env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(node), delNode)
-		g.Expect(err).ToNot(BeNil())
+		g.Expect(err).To(HaveOccurred())
 		g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 	})
 
@@ -1276,7 +1715,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 
 		// set infra replicas
 		err := unstructured.SetNestedField(infraConfig.Object, int64(0), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		r := &MachinePoolReconciler{
 			Client:   fake.NewClientBuilder().WithObjects(testCluster, kubeconfigSecret, machinepool, bootstrapConfig, infraConfig, builder.TestBootstrapConfigCRD, builder.TestInfrastructureMachineTemplateCRD).Build(),
@@ -1284,7 +1723,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, testCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -1310,7 +1749,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 
 		// set infra replicas
 		err := unstructured.SetNestedField(infraConfig.Object, int64(0), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		r := &MachinePoolReconciler{
 			Client:   fake.NewClientBuilder().WithObjects(testCluster, kubeconfigSecret, machinepool, bootstrapConfig, infraConfig, builder.TestBootstrapConfigCRD, builder.TestInfrastructureMachineTemplateCRD).Build(),
@@ -1318,7 +1757,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, testCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -1342,7 +1781,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 				},
 			},
 		}
-		g.Expect(env.Create(ctx, node)).To(BeNil())
+		g.Expect(env.Create(ctx, node)).To(Succeed())
 		defer func(do ...client.Object) {
 			g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
 		}(node)
@@ -1362,11 +1801,11 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 
 		// set infra providerIDList
 		err = unstructured.SetNestedStringSlice(infraConfig.Object, []string{"test://machinepool-test-node"}, "spec", "providerIDList")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		// set infra replicas
 		err = unstructured.SetNestedField(infraConfig.Object, int64(1), "status", "replicas")
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		fakeClient := fake.NewClientBuilder().WithObjects(testCluster, kubeconfigSecret, machinepool, bootstrapConfig, infraConfig, builder.TestBootstrapConfigCRD, builder.TestInfrastructureMachineTemplateCRD).Build()
 		r := &MachinePoolReconciler{
@@ -1376,7 +1815,7 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 		}
 
 		res, err := r.reconcile(ctx, testCluster, machinepool)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(res.Requeue).To(BeFalse())
 
 		r.reconcilePhase(machinepool)
@@ -1384,6 +1823,6 @@ func TestReconcileMachinePoolScaleToFromZero(t *testing.T) {
 		g.Expect(machinepool.Status.GetTypedPhase()).To(Equal(expv1.MachinePoolPhaseRunning))
 
 		delNode := &corev1.Node{}
-		g.Expect(env.Get(ctx, client.ObjectKeyFromObject(node), delNode)).To(BeNil())
+		g.Expect(env.Get(ctx, client.ObjectKeyFromObject(node), delNode)).To(Succeed())
 	})
 }

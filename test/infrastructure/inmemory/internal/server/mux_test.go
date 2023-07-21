@@ -25,7 +25,6 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -36,11 +35,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cloudv1 "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud/api/v1alpha1"
 	cmanager "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud/runtime/manager"
 	"sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/server/proxy"
 	"sigs.k8s.io/cluster-api/util/certs"
@@ -60,13 +61,20 @@ func init() {
 }
 
 func TestMux(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	manager := cmanager.New(scheme)
 
 	wcl := "workload-cluster"
 	host := "127.0.0.1" //nolint:goconst
-	wcmux := NewWorkloadClustersMux(manager, host)
+	wcmux, err := NewWorkloadClustersMux(manager, host, CustomPorts{
+		// NOTE: make sure to use ports different than other tests, so we can run tests in parallel
+		MinPort:   DefaultMinPort,
+		MaxPort:   DefaultMinPort + 99,
+		DebugPort: DefaultDebugPort,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
 
 	listener, err := wcmux.InitWorkloadClusterListener(wcl)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -115,9 +123,15 @@ func TestMux(t *testing.T) {
 }
 
 func TestAPI_corev1_CRUD(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
-	wcmux, c := setupWorkloadClusterListener(g)
+	wcmux, c := setupWorkloadClusterListener(g, CustomPorts{
+		// NOTE: make sure to use ports different than other tests, so we can run tests in parallel
+		MinPort:   DefaultMinPort + 100,
+		MaxPort:   DefaultMinPort + 199,
+		DebugPort: DefaultDebugPort + 1,
+	})
 
 	// create
 
@@ -135,6 +149,23 @@ func TestAPI_corev1_CRUD(t *testing.T) {
 	g.Expect(nl.Items).To(HaveLen(1))
 	g.Expect(nl.Items[0].Name).To(Equal("foo"))
 
+	// list with nodeName selector on pod
+	g.Expect(c.Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "bar", Namespace: metav1.NamespaceDefault},
+		Spec:       corev1.PodSpec{NodeName: n.Name},
+	})).To(Succeed())
+	g.Expect(c.Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "notSelectedPod", Namespace: metav1.NamespaceDefault},
+	})).To(Succeed())
+
+	pl := &corev1.PodList{}
+	nodeNameSelector := &client.ListOptions{
+		FieldSelector: fields.SelectorFromSet(fields.Set{"spec.nodeName": n.Name}),
+	}
+	g.Expect(c.List(ctx, pl, nodeNameSelector)).To(Succeed())
+	g.Expect(pl.Items).To(HaveLen(1))
+	g.Expect(pl.Items[0].Name).To(Equal("bar"))
+
 	// get
 
 	n = &corev1.Node{}
@@ -149,17 +180,15 @@ func TestAPI_corev1_CRUD(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	n3 := n2.DeepCopy()
-	// TODO: n doesn't have taints, so not sure what we are testing here.
-	taints := []corev1.Taint{}
-	for _, taint := range n.Spec.Taints {
-		if taint.Key == "foo" {
-			continue
-		}
-		taints = append(taints, taint)
-	}
+	taints := []corev1.Taint{{Key: "foo"}}
+
 	n3.Spec.Taints = taints
 	err = c.Patch(ctx, n3, client.StrategicMergeFrom(n2))
 	g.Expect(err).ToNot(HaveOccurred())
+
+	node := &corev1.Node{}
+	g.Expect(c.Get(ctx, client.ObjectKeyFromObject(n3), node)).To(Succeed())
+	g.Expect(node.Spec.Taints).To(Equal(taints))
 
 	// delete
 
@@ -171,9 +200,15 @@ func TestAPI_corev1_CRUD(t *testing.T) {
 }
 
 func TestAPI_rbacv1_CRUD(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
-	wcmux, c := setupWorkloadClusterListener(g)
+	wcmux, c := setupWorkloadClusterListener(g, CustomPorts{
+		// NOTE: make sure to use ports different than other tests, so we can run tests in parallel
+		MinPort:   DefaultMinPort + 200,
+		MaxPort:   DefaultMinPort + 299,
+		DebugPort: DefaultDebugPort + 2,
+	})
 
 	// create
 
@@ -214,12 +249,19 @@ func TestAPI_rbacv1_CRUD(t *testing.T) {
 }
 
 func TestAPI_PortForward(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 	manager := cmanager.New(scheme)
 
 	// TODO: deduplicate this setup code with the test above
 	host := "127.0.0.1"
-	wcmux := NewWorkloadClustersMux(manager, host)
+	wcmux, err := NewWorkloadClustersMux(manager, host, CustomPorts{
+		// NOTE: make sure to use ports different than other tests, so we can run tests in parallel
+		MinPort:   DefaultMinPort + 300,
+		MaxPort:   DefaultMinPort + 399,
+		DebugPort: DefaultDebugPort + 3,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
 
 	// InfraCluster controller >> when "creating the load balancer"
 	wcl1 := "workload-cluster1"
@@ -256,11 +298,9 @@ func TestAPI_PortForward(t *testing.T) {
 				"tier":      "control-plane",
 			},
 			Annotations: map[string]string{
-				// TODO: read this from existing etcd pods, if any.
-				"etcd.inmemory.infrastructure.cluster.x-k8s.io/cluster-id": fmt.Sprintf("%d", rand.Uint32()), //nolint:gosec // weak random number generator is good enough here
-				"etcd.inmemory.infrastructure.cluster.x-k8s.io/member-id":  fmt.Sprintf("%d", rand.Uint32()), //nolint:gosec // weak random number generator is good enough here
-				// TODO: set this only if there are no other leaders.
-				"etcd.inmemory.infrastructure.cluster.x-k8s.io/leader-from": time.Now().Format(time.RFC3339),
+				cloudv1.EtcdClusterIDAnnotationName:  "1",
+				cloudv1.EtcdMemberIDAnnotationName:   "2",
+				cloudv1.EtcdLeaderFromAnnotationName: time.Now().Format(time.RFC3339),
 			},
 		},
 	}
@@ -341,11 +381,110 @@ func TestAPI_PortForward(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func setupWorkloadClusterListener(g Gomega) (*WorkloadClustersMux, client.Client) {
+func TestAPI_corev1_Watch(t *testing.T) {
+	g := NewWithT(t)
+
+	_, c := setupWorkloadClusterListener(g, CustomPorts{
+		// NOTE: make sure to use ports different than other tests, so we can run tests in parallel
+		MinPort:   DefaultMinPort + 400,
+		MaxPort:   DefaultMinPort + 499,
+		DebugPort: DefaultDebugPort + 4,
+	})
+
+	ctx := context.Background()
+
+	nodeWatcher, err := c.Watch(ctx, &corev1.NodeList{})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	podWatcher, err := c.Watch(ctx, &corev1.PodList{})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	expectedEvents := []string{"ADDED/foo", "MODIFIED/foo", "DELETED/foo", "ADDED/bar", "MODIFIED/bar", "DELETED/bar"}
+	receivedEvents := []string{}
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case event := <-nodeWatcher.ResultChan():
+				o, ok := event.Object.(client.Object)
+				if !ok {
+					return
+				}
+				receivedEvents = append(receivedEvents, fmt.Sprintf("%s/%s", event.Type, o.GetName()))
+			case event := <-podWatcher.ResultChan():
+				o, ok := event.Object.(client.Object)
+				if !ok {
+					return
+				}
+				receivedEvents = append(receivedEvents, fmt.Sprintf("%s/%s", event.Type, o.GetName()))
+			case <-done:
+				nodeWatcher.Stop()
+			}
+		}
+	}()
+
+	// Test watcher on Node resources.
+
+	node1 := &corev1.Node{}
+	node1.SetName("foo")
+
+	// create node
+	err = c.Create(ctx, node1)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// get node
+	n := &corev1.Node{}
+	err = c.Get(ctx, client.ObjectKey{Name: "foo"}, n)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// patch node
+	nodeWithAnnotations := n.DeepCopy()
+	nodeWithAnnotations.SetAnnotations(map[string]string{"foo": "bar"})
+	err = c.Patch(ctx, nodeWithAnnotations, client.MergeFrom(n))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// delete node
+	err = c.Delete(ctx, n)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Test watcher on Pod resources.
+	pod1 := &corev1.Pod{}
+	pod1.SetName("bar")
+	pod1.SetNamespace("one")
+
+	// create pod
+	err = c.Create(ctx, pod1)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// patch pod
+	p := &corev1.Pod{}
+	err = c.Get(ctx, client.ObjectKey{Name: "bar", Namespace: "one"}, p)
+	g.Expect(err).ToNot(HaveOccurred())
+	podWithAnnotations := p.DeepCopy()
+	podWithAnnotations.SetAnnotations(map[string]string{"foo": "bar"})
+	err = c.Patch(ctx, podWithAnnotations, client.MergeFrom(p))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// delete pod
+	err = c.Delete(ctx, p)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Wait a second to ensure all events have been flushed.
+	time.Sleep(time.Second)
+
+	// Send a done signal to close the test goroutine.
+	done <- true
+
+	// Each event should be the same and in the same order.
+	g.Expect(receivedEvents).To(Equal(expectedEvents))
+}
+
+func setupWorkloadClusterListener(g Gomega, ports CustomPorts) (*WorkloadClustersMux, client.WithWatch) {
 	manager := cmanager.New(scheme)
 
 	host := "127.0.0.1"
-	wcmux := NewWorkloadClustersMux(manager, host)
+	wcmux, err := NewWorkloadClustersMux(manager, host, ports)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	// InfraCluster controller >> when "creating the load balancer"
 	wcl1 := "workload-cluster1"

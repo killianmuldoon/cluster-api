@@ -67,7 +67,7 @@ func TestKubeadmControlPlaneReconciler_updateStatusNoMachines(t *testing.T) {
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	fakeClient := newFakeClient(kcp.DeepCopy(), cluster.DeepCopy())
 	log.SetLogger(klogr.New())
@@ -81,7 +81,13 @@ func TestKubeadmControlPlaneReconciler_updateStatusNoMachines(t *testing.T) {
 		recorder: record.NewFakeRecorder(32),
 	}
 
-	g.Expect(r.updateStatus(ctx, kcp, cluster)).To(Succeed())
+	controlPlane := &internal.ControlPlane{
+		KCP:     kcp,
+		Cluster: cluster,
+	}
+	controlPlane.InjectTestManagementCluster(r.managementCluster)
+
+	g.Expect(r.updateStatus(ctx, controlPlane)).To(Succeed())
 	g.Expect(kcp.Status.Replicas).To(BeEquivalentTo(0))
 	g.Expect(kcp.Status.ReadyReplicas).To(BeEquivalentTo(0))
 	g.Expect(kcp.Status.UnavailableReplicas).To(BeEquivalentTo(0))
@@ -124,7 +130,7 @@ func TestKubeadmControlPlaneReconciler_updateStatusAllMachinesNotReady(t *testin
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	machines := map[string]*clusterv1.Machine{}
 	objs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy()}
@@ -147,7 +153,14 @@ func TestKubeadmControlPlaneReconciler_updateStatusAllMachinesNotReady(t *testin
 		recorder: record.NewFakeRecorder(32),
 	}
 
-	g.Expect(r.updateStatus(ctx, kcp, cluster)).To(Succeed())
+	controlPlane := &internal.ControlPlane{
+		KCP:      kcp,
+		Cluster:  cluster,
+		Machines: machines,
+	}
+	controlPlane.InjectTestManagementCluster(r.managementCluster)
+
+	g.Expect(r.updateStatus(ctx, controlPlane)).To(Succeed())
 	g.Expect(kcp.Status.Replicas).To(BeEquivalentTo(3))
 	g.Expect(kcp.Status.ReadyReplicas).To(BeEquivalentTo(0))
 	g.Expect(kcp.Status.UnavailableReplicas).To(BeEquivalentTo(3))
@@ -190,7 +203,7 @@ func TestKubeadmControlPlaneReconciler_updateStatusAllMachinesReady(t *testing.T
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	objs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy(), kubeadmConfigMap()}
 	machines := map[string]*clusterv1.Machine{}
@@ -219,7 +232,14 @@ func TestKubeadmControlPlaneReconciler_updateStatusAllMachinesReady(t *testing.T
 		recorder: record.NewFakeRecorder(32),
 	}
 
-	g.Expect(r.updateStatus(ctx, kcp, cluster)).To(Succeed())
+	controlPlane := &internal.ControlPlane{
+		KCP:      kcp,
+		Cluster:  cluster,
+		Machines: machines,
+	}
+	controlPlane.InjectTestManagementCluster(r.managementCluster)
+
+	g.Expect(r.updateStatus(ctx, controlPlane)).To(Succeed())
 	g.Expect(kcp.Status.Replicas).To(BeEquivalentTo(3))
 	g.Expect(kcp.Status.ReadyReplicas).To(BeEquivalentTo(3))
 	g.Expect(kcp.Status.UnavailableReplicas).To(BeEquivalentTo(0))
@@ -264,7 +284,7 @@ func TestKubeadmControlPlaneReconciler_updateStatusMachinesReadyMixed(t *testing
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	machines := map[string]*clusterv1.Machine{}
 	objs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy()}
 	for i := 0; i < 4; i++ {
@@ -294,7 +314,14 @@ func TestKubeadmControlPlaneReconciler_updateStatusMachinesReadyMixed(t *testing
 		recorder: record.NewFakeRecorder(32),
 	}
 
-	g.Expect(r.updateStatus(ctx, kcp, cluster)).To(Succeed())
+	controlPlane := &internal.ControlPlane{
+		KCP:      kcp,
+		Cluster:  cluster,
+		Machines: machines,
+	}
+	controlPlane.InjectTestManagementCluster(r.managementCluster)
+
+	g.Expect(r.updateStatus(ctx, controlPlane)).To(Succeed())
 	g.Expect(kcp.Status.Replicas).To(BeEquivalentTo(5))
 	g.Expect(kcp.Status.ReadyReplicas).To(BeEquivalentTo(1))
 	g.Expect(kcp.Status.UnavailableReplicas).To(BeEquivalentTo(4))
@@ -338,7 +365,7 @@ func TestKubeadmControlPlaneReconciler_machinesCreatedIsIsTrueEvenWhenTheNodesAr
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	machines := map[string]*clusterv1.Machine{}
 	objs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy()}
 	// Create the desired number of machines
@@ -368,7 +395,14 @@ func TestKubeadmControlPlaneReconciler_machinesCreatedIsIsTrueEvenWhenTheNodesAr
 		recorder: record.NewFakeRecorder(32),
 	}
 
-	g.Expect(r.updateStatus(ctx, kcp, cluster)).To(Succeed())
+	controlPlane := &internal.ControlPlane{
+		KCP:      kcp,
+		Cluster:  cluster,
+		Machines: machines,
+	}
+	controlPlane.InjectTestManagementCluster(r.managementCluster)
+
+	g.Expect(r.updateStatus(ctx, controlPlane)).To(Succeed())
 	g.Expect(kcp.Status.Replicas).To(BeEquivalentTo(3))
 	g.Expect(kcp.Status.ReadyReplicas).To(BeEquivalentTo(0))
 	g.Expect(kcp.Status.UnavailableReplicas).To(BeEquivalentTo(3))

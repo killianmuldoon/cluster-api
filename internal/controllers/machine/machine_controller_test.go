@@ -106,11 +106,11 @@ func TestWatches(t *testing.T) {
 		},
 	}
 
-	g.Expect(env.Create(ctx, testCluster)).To(BeNil())
+	g.Expect(env.Create(ctx, testCluster)).To(Succeed())
 	g.Expect(env.CreateKubeconfigSecret(ctx, testCluster)).To(Succeed())
-	g.Expect(env.Create(ctx, defaultBootstrap)).To(BeNil())
+	g.Expect(env.Create(ctx, defaultBootstrap)).To(Succeed())
 	g.Expect(env.Create(ctx, node)).To(Succeed())
-	g.Expect(env.Create(ctx, infraMachine)).To(BeNil())
+	g.Expect(env.Create(ctx, infraMachine)).To(Succeed())
 
 	defer func(do ...client.Object) {
 		g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
@@ -153,7 +153,7 @@ func TestWatches(t *testing.T) {
 			}},
 	}
 
-	g.Expect(env.Create(ctx, machine)).To(BeNil())
+	g.Expect(env.Create(ctx, machine)).To(Succeed())
 	defer func() {
 		g.Expect(env.Cleanup(ctx, machine)).To(Succeed())
 	}()
@@ -223,9 +223,9 @@ func TestMachine_Reconcile(t *testing.T) {
 		},
 	}
 
-	g.Expect(env.Create(ctx, testCluster)).To(BeNil())
-	g.Expect(env.Create(ctx, infraMachine)).To(BeNil())
-	g.Expect(env.Create(ctx, defaultBootstrap)).To(BeNil())
+	g.Expect(env.Create(ctx, testCluster)).To(Succeed())
+	g.Expect(env.Create(ctx, infraMachine)).To(Succeed())
+	g.Expect(env.Create(ctx, defaultBootstrap)).To(Succeed())
 
 	defer func(do ...client.Object) {
 		g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
@@ -257,7 +257,7 @@ func TestMachine_Reconcile(t *testing.T) {
 			},
 		},
 	}
-	g.Expect(env.Create(ctx, machine)).To(BeNil())
+	g.Expect(env.Create(ctx, machine)).To(Succeed())
 
 	key := client.ObjectKey{Name: machine.Name, Namespace: machine.Namespace}
 
@@ -271,7 +271,7 @@ func TestMachine_Reconcile(t *testing.T) {
 
 	// Set bootstrap ready.
 	bootstrapPatch := client.MergeFrom(defaultBootstrap.DeepCopy())
-	g.Expect(unstructured.SetNestedField(defaultBootstrap.Object, true, "status", "ready")).NotTo(HaveOccurred())
+	g.Expect(unstructured.SetNestedField(defaultBootstrap.Object, true, "status", "ready")).ToNot(HaveOccurred())
 	g.Expect(env.Status().Patch(ctx, defaultBootstrap, bootstrapPatch)).To(Succeed())
 
 	// Set infrastructure ready.
@@ -291,7 +291,7 @@ func TestMachine_Reconcile(t *testing.T) {
 		return readyCondition.Status == corev1.ConditionTrue
 	}, timeout).Should(BeTrue())
 
-	g.Expect(env.Delete(ctx, machine)).NotTo(HaveOccurred())
+	g.Expect(env.Delete(ctx, machine)).ToNot(HaveOccurred())
 	// Wait for Machine to be deleted.
 	g.Eventually(func() bool {
 		if err := env.Get(ctx, key, machine); err != nil {
@@ -389,12 +389,14 @@ func TestMachineFinalizer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 
+			c := fake.NewClientBuilder().WithObjects(
+				clusterCorrectMeta,
+				machineValidCluster,
+				machineWithFinalizer,
+			).Build()
 			mr := &Reconciler{
-				Client: fake.NewClientBuilder().WithObjects(
-					clusterCorrectMeta,
-					machineValidCluster,
-					machineWithFinalizer,
-				).Build(),
+				Client:                    c,
+				UnstructuredCachingClient: c,
 			}
 
 			_, _ = mr.Reconcile(ctx, tc.request)
@@ -556,8 +558,9 @@ func TestMachineOwnerReference(t *testing.T) {
 				machineValidControlled,
 			).WithStatusSubresource(&clusterv1.Machine{}).Build()
 			mr := &Reconciler{
-				Client:    c,
-				APIReader: c,
+				Client:                    c,
+				UnstructuredCachingClient: c,
+				APIReader:                 c,
 			}
 
 			key := client.ObjectKey{Namespace: tc.m.Namespace, Name: tc.m.Name}
@@ -565,7 +568,7 @@ func TestMachineOwnerReference(t *testing.T) {
 
 			// this first requeue is to add finalizer
 			result, err := mr.Reconcile(ctx, tc.request)
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(result).To(Equal(ctrl.Result{}))
 			g.Expect(mr.Client.Get(ctx, key, &actual)).To(Succeed())
 			g.Expect(actual.Finalizers).To(ContainElement(clusterv1.MachineFinalizer))
@@ -727,16 +730,17 @@ func TestReconcileRequest(t *testing.T) {
 			).WithStatusSubresource(&clusterv1.Machine{}).WithIndex(&corev1.Node{}, index.NodeProviderIDField, index.NodeByProviderID).Build()
 
 			r := &Reconciler{
-				Client:   clientFake,
-				Tracker:  remote.NewTestClusterCacheTracker(logr.New(log.NullLogSink{}), clientFake, scheme.Scheme, client.ObjectKey{Name: testCluster.Name, Namespace: testCluster.Namespace}),
-				ssaCache: ssa.NewCache(),
+				Client:                    clientFake,
+				UnstructuredCachingClient: clientFake,
+				Tracker:                   remote.NewTestClusterCacheTracker(logr.New(log.NullLogSink{}), clientFake, scheme.Scheme, client.ObjectKey{Name: testCluster.Name, Namespace: testCluster.Namespace}),
+				ssaCache:                  ssa.NewCache(),
 			}
 
 			result, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: util.ObjectKey(&tc.machine)})
 			if tc.expected.err {
 				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
 			}
 
 			g.Expect(result).To(Equal(tc.expected.result))
@@ -975,16 +979,17 @@ func TestMachineConditions(t *testing.T) {
 				Build()
 
 			r := &Reconciler{
-				Client:   clientFake,
-				Tracker:  remote.NewTestClusterCacheTracker(logr.New(log.NullLogSink{}), clientFake, scheme.Scheme, client.ObjectKey{Name: testCluster.Name, Namespace: testCluster.Namespace}),
-				ssaCache: ssa.NewCache(),
+				Client:                    clientFake,
+				UnstructuredCachingClient: clientFake,
+				Tracker:                   remote.NewTestClusterCacheTracker(logr.New(log.NullLogSink{}), clientFake, scheme.Scheme, client.ObjectKey{Name: testCluster.Name, Namespace: testCluster.Namespace}),
+				ssaCache:                  ssa.NewCache(),
 			}
 
 			_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: util.ObjectKey(&machine)})
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 
 			m = &clusterv1.Machine{}
-			g.Expect(r.Client.Get(ctx, client.ObjectKeyFromObject(&machine), m)).NotTo(HaveOccurred())
+			g.Expect(r.Client.Get(ctx, client.ObjectKeyFromObject(&machine), m)).ToNot(HaveOccurred())
 
 			assertConditions(t, m, tt.conditionsToAssert...)
 		})
@@ -1064,8 +1069,10 @@ func TestReconcileDeleteExternal(t *testing.T) {
 				objs = append(objs, bootstrapConfig)
 			}
 
+			c := fake.NewClientBuilder().WithObjects(objs...).Build()
 			r := &Reconciler{
-				Client: fake.NewClientBuilder().WithObjects(objs...).Build(),
+				Client:                    c,
+				UnstructuredCachingClient: c,
 			}
 
 			obj, err := r.reconcileDeleteExternal(ctx, machine, machine.Spec.Bootstrap.ConfigRef)
@@ -1073,7 +1080,7 @@ func TestReconcileDeleteExternal(t *testing.T) {
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
 			}
 		})
 	}
@@ -1106,8 +1113,10 @@ func TestRemoveMachineFinalizerAfterDeleteReconcile(t *testing.T) {
 		},
 	}
 	key := client.ObjectKey{Namespace: m.Namespace, Name: m.Name}
+	c := fake.NewClientBuilder().WithObjects(testCluster, m).WithStatusSubresource(&clusterv1.Machine{}).Build()
 	mr := &Reconciler{
-		Client: fake.NewClientBuilder().WithObjects(testCluster, m).WithStatusSubresource(&clusterv1.Machine{}).Build(),
+		Client:                    c,
+		UnstructuredCachingClient: c,
 	}
 	_, err := mr.Reconcile(ctx, reconcile.Request{NamespacedName: key})
 	g.Expect(err).ToNot(HaveOccurred())
@@ -1232,8 +1241,10 @@ func TestIsNodeDrainedAllowed(t *testing.T) {
 			var objs []client.Object
 			objs = append(objs, testCluster, tt.machine)
 
+			c := fake.NewClientBuilder().WithObjects(objs...).Build()
 			r := &Reconciler{
-				Client: fake.NewClientBuilder().WithObjects(objs...).Build(),
+				Client:                    c,
+				UnstructuredCachingClient: c,
 			}
 
 			got := r.isNodeDrainAllowed(tt.machine)
@@ -1357,8 +1368,10 @@ func TestIsNodeVolumeDetachingAllowed(t *testing.T) {
 			var objs []client.Object
 			objs = append(objs, testCluster, tt.machine)
 
+			c := fake.NewClientBuilder().WithObjects(objs...).Build()
 			r := &Reconciler{
-				Client: fake.NewClientBuilder().WithObjects(objs...).Build(),
+				Client:                    c,
+				UnstructuredCachingClient: c,
 			}
 
 			got := r.isNodeVolumeDetachingAllowed(tt.machine)
@@ -1709,21 +1722,23 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 				m2.Labels[clusterv1.MachineControlPlaneLabel] = ""
 			}
 
+			c := fake.NewClientBuilder().WithObjects(
+				tc.cluster,
+				tc.machine,
+				m1,
+				m2,
+				emp,
+				mcpBeingDeleted,
+				empBeingDeleted,
+			).Build()
 			mr := &Reconciler{
-				Client: fake.NewClientBuilder().WithObjects(
-					tc.cluster,
-					tc.machine,
-					m1,
-					m2,
-					emp,
-					mcpBeingDeleted,
-					empBeingDeleted,
-				).Build(),
+				Client:                    c,
+				UnstructuredCachingClient: c,
 			}
 
 			err := mr.isDeleteNodeAllowed(ctx, tc.cluster, tc.machine)
 			if tc.expectedError == nil {
-				g.Expect(err).To(BeNil())
+				g.Expect(err).ToNot(HaveOccurred())
 			} else {
 				g.Expect(err).To(Equal(tc.expectedError))
 			}
@@ -1821,13 +1836,13 @@ func TestNodeToMachine(t *testing.T) {
 		},
 	}
 
-	g.Expect(env.Create(ctx, testCluster)).To(BeNil())
+	g.Expect(env.Create(ctx, testCluster)).To(Succeed())
 	g.Expect(env.CreateKubeconfigSecret(ctx, testCluster)).To(Succeed())
-	g.Expect(env.Create(ctx, defaultBootstrap)).To(BeNil())
+	g.Expect(env.Create(ctx, defaultBootstrap)).To(Succeed())
 	g.Expect(env.Create(ctx, targetNode)).To(Succeed())
 	g.Expect(env.Create(ctx, randomNode)).To(Succeed())
-	g.Expect(env.Create(ctx, infraMachine)).To(BeNil())
-	g.Expect(env.Create(ctx, infraMachine2)).To(BeNil())
+	g.Expect(env.Create(ctx, infraMachine)).To(Succeed())
+	g.Expect(env.Create(ctx, infraMachine2)).To(Succeed())
 
 	defer func(do ...client.Object) {
 		g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
@@ -1876,7 +1891,7 @@ func TestNodeToMachine(t *testing.T) {
 			}},
 	}
 
-	g.Expect(env.Create(ctx, expectedMachine)).To(BeNil())
+	g.Expect(env.Create(ctx, expectedMachine)).To(Succeed())
 	defer func() {
 		g.Expect(env.Cleanup(ctx, expectedMachine)).To(Succeed())
 	}()
@@ -1915,7 +1930,7 @@ func TestNodeToMachine(t *testing.T) {
 			}},
 	}
 
-	g.Expect(env.Create(ctx, randomMachine)).To(BeNil())
+	g.Expect(env.Create(ctx, randomMachine)).To(Succeed())
 	defer func() {
 		g.Expect(env.Cleanup(ctx, randomMachine)).To(Succeed())
 	}()
@@ -1981,7 +1996,8 @@ func TestNodeToMachine(t *testing.T) {
 	}
 
 	r := &Reconciler{
-		Client: env,
+		Client:                    env,
+		UnstructuredCachingClient: env,
 	}
 	for _, node := range fakeNodes {
 		request := r.nodeToMachine(ctx, node)
@@ -2159,10 +2175,11 @@ func TestNodeDeletion(t *testing.T) {
 			tracker := remote.NewTestClusterCacheTracker(ctrl.Log, fakeClient, fakeScheme, client.ObjectKeyFromObject(&testCluster))
 
 			r := &Reconciler{
-				Client:                   fakeClient,
-				Tracker:                  tracker,
-				recorder:                 record.NewFakeRecorder(10),
-				nodeDeletionRetryTimeout: 10 * time.Millisecond,
+				Client:                    fakeClient,
+				UnstructuredCachingClient: fakeClient,
+				Tracker:                   tracker,
+				recorder:                  record.NewFakeRecorder(10),
+				nodeDeletionRetryTimeout:  10 * time.Millisecond,
 			}
 
 			cluster := testCluster.DeepCopy()
@@ -2175,7 +2192,7 @@ func TestNodeDeletion(t *testing.T) {
 			if tc.resultErr {
 				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
 				if tc.expectNodeDeletion {
 					n := &corev1.Node{}
 					g.Expect(fakeClient.Get(context.Background(), client.ObjectKeyFromObject(node), n)).NotTo(Succeed())

@@ -21,10 +21,12 @@ import (
 	"time"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -114,6 +116,15 @@ func (c *cache) List(resourceGroup string, list client.ObjectList, opts ...clien
 				metaLabels := labels.Set(obj.GetLabels())
 				if !listOpts.LabelSelector.Matches(metaLabels) {
 					continue
+				}
+			}
+
+			// TODO(killianmuldoon): This only matches the nodeName field for pods. No other fieldSelectors are implemented. This should return an error if another fieldselector is used.
+			if pod, ok := obj.(*corev1.Pod); ok {
+				if listOpts.FieldSelector != nil && !listOpts.FieldSelector.Empty() {
+					if !listOpts.FieldSelector.Matches(fields.Set{"spec.nodeName": pod.Spec.NodeName}) {
+						continue
+					}
 				}
 			}
 
@@ -272,11 +283,6 @@ func updateTrackerOwnerReferences(tracker *resourceGroupTracker, oldObj, newObj 
 }
 
 func (c *cache) Patch(resourceGroup string, obj client.Object, patch client.Patch) error {
-	obj = obj.DeepCopyObject().(client.Object)
-	if err := c.Get(resourceGroup, client.ObjectKeyFromObject(obj), obj); err != nil {
-		return err
-	}
-
 	patchData, err := patch.Data(obj)
 	if err != nil {
 		return apierrors.NewInternalError(err)
@@ -409,11 +415,8 @@ func (c *cache) doTryDeleteLocked(resourceGroup string, tracker *resourceGroupTr
 		delete(tracker.ownedObjects, ownReference{gvk: objGVK, key: objKey})
 	}
 
-	// If the object still has finalizers, only set the deletion timestamp if not already set.
-	if len(obj.GetFinalizers()) > 0 {
-		if !obj.GetDeletionTimestamp().IsZero() {
-			return false, nil
-		}
+	// Set the deletion timestamp if not already set.
+	if obj.GetDeletionTimestamp().IsZero() {
 		if err := c.beforeDelete(resourceGroup, obj); err != nil {
 			return false, apierrors.NewBadRequest(err.Error())
 		}
@@ -424,13 +427,13 @@ func (c *cache) doTryDeleteLocked(resourceGroup string, tracker *resourceGroupTr
 		if err := c.beforeUpdate(resourceGroup, oldObj, obj); err != nil {
 			return false, apierrors.NewBadRequest(err.Error())
 		}
-		// Required to override default beforeUpdate behaviour
-		// that prevent changes to automatically managed fields.
-		obj.SetDeletionTimestamp(&now)
 
 		objects[objKey] = obj
 		c.afterUpdate(resourceGroup, oldObj, obj)
+	}
 
+	// If the object still has finalizers return early.
+	if len(obj.GetFinalizers()) > 0 {
 		return false, nil
 	}
 

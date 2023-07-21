@@ -87,8 +87,9 @@ func TestClusterToKubeadmControlPlane(t *testing.T) {
 	}
 
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	got := r.ClusterToKubeadmControlPlane(ctx, cluster)
@@ -102,8 +103,9 @@ func TestClusterToKubeadmControlPlaneNoControlPlane(t *testing.T) {
 	cluster := newCluster(&types.NamespacedName{Name: "foo", Namespace: metav1.NamespaceDefault})
 
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	got := r.ClusterToKubeadmControlPlane(ctx, cluster)
@@ -125,8 +127,9 @@ func TestClusterToKubeadmControlPlaneOtherControlPlane(t *testing.T) {
 	}
 
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	got := r.ClusterToKubeadmControlPlane(ctx, cluster)
@@ -147,12 +150,13 @@ func TestReconcileReturnErrorWhenOwnerClusterIsMissing(t *testing.T) {
 	}(kcp, ns)
 
 	r := &KubeadmControlPlaneReconciler{
-		Client:   env,
-		recorder: record.NewFakeRecorder(32),
+		Client:              env,
+		SecretCachingClient: secretCachingClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(result).To(Equal(ctrl.Result{}))
 
 	// calling reconcile should return error
@@ -169,9 +173,10 @@ func TestReconcileUpdateObservedGeneration(t *testing.T) {
 
 	g := NewWithT(t)
 	r := &KubeadmControlPlaneReconciler{
-		Client:            env,
-		recorder:          record.NewFakeRecorder(32),
-		managementCluster: &internal.Management{Client: env.Client, Tracker: nil},
+		Client:              env,
+		SecretCachingClient: secretCachingClient,
+		recorder:            record.NewFakeRecorder(32),
+		managementCluster:   &internal.Management{Client: env.Client, Tracker: nil},
 	}
 
 	ns, err := env.CreateNamespace(ctx, "test-reconcile-upd-og")
@@ -186,7 +191,7 @@ func TestReconcileUpdateObservedGeneration(t *testing.T) {
 
 	// read kcp.Generation after create
 	errGettingObject := env.Get(ctx, util.ObjectKey(kcp), kcp)
-	g.Expect(errGettingObject).NotTo(HaveOccurred())
+	g.Expect(errGettingObject).ToNot(HaveOccurred())
 	generation := kcp.Generation
 
 	// Set cluster.status.InfrastructureReady so we actually enter in the reconcile loop
@@ -195,12 +200,12 @@ func TestReconcileUpdateObservedGeneration(t *testing.T) {
 
 	// call reconcile the first time, so we can check if observedGeneration is set when adding a finalizer
 	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(result).To(Equal(ctrl.Result{}))
 
 	g.Eventually(func() int64 {
 		errGettingObject = env.Get(ctx, util.ObjectKey(kcp), kcp)
-		g.Expect(errGettingObject).NotTo(HaveOccurred())
+		g.Expect(errGettingObject).ToNot(HaveOccurred())
 		return kcp.Status.ObservedGeneration
 	}, 10*time.Second).Should(Equal(generation))
 
@@ -210,7 +215,7 @@ func TestReconcileUpdateObservedGeneration(t *testing.T) {
 
 	// read kcp.Generation after the update
 	errGettingObject = env.Get(ctx, util.ObjectKey(kcp), kcp)
-	g.Expect(errGettingObject).NotTo(HaveOccurred())
+	g.Expect(errGettingObject).ToNot(HaveOccurred())
 	generation = kcp.Generation
 
 	// call reconcile the second time, so we can check if observedGeneration is set when calling defer patch
@@ -220,7 +225,7 @@ func TestReconcileUpdateObservedGeneration(t *testing.T) {
 
 	g.Eventually(func() int64 {
 		errGettingObject = env.Get(ctx, util.ObjectKey(kcp), kcp)
-		g.Expect(errGettingObject).NotTo(HaveOccurred())
+		g.Expect(errGettingObject).ToNot(HaveOccurred())
 		return kcp.Status.ObservedGeneration
 	}, 10*time.Second).Should(Equal(generation))
 }
@@ -247,16 +252,17 @@ func TestReconcileNoClusterOwnerRef(t *testing.T) {
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	fakeClient := newFakeClient(kcp.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(result).To(Equal(ctrl.Result{}))
 
 	machineList := &clusterv1.MachineList{}
@@ -287,12 +293,13 @@ func TestReconcileNoKCP(t *testing.T) {
 
 	fakeClient := newFakeClient()
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestReconcileNoCluster(t *testing.T) {
@@ -324,12 +331,13 @@ func TestReconcileNoCluster(t *testing.T) {
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	fakeClient := newFakeClient(kcp.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	_, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
@@ -374,15 +382,16 @@ func TestReconcilePaused(t *testing.T) {
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	fakeClient := newFakeClient(kcp.DeepCopy(), cluster.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 	}
 
 	_, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	machineList := &clusterv1.MachineList{}
 	g.Expect(fakeClient.List(ctx, machineList, client.InNamespace(metav1.NamespaceDefault))).To(Succeed())
@@ -393,7 +402,7 @@ func TestReconcilePaused(t *testing.T) {
 	kcp.ObjectMeta.Annotations = map[string]string{}
 	kcp.ObjectMeta.Annotations[clusterv1.PausedAnnotation] = "paused"
 	_, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestReconcileClusterNoEndpoints(t *testing.T) {
@@ -428,12 +437,13 @@ func TestReconcileClusterNoEndpoints(t *testing.T) {
 	}
 	kcp.Default()
 	_, err := kcp.ValidateCreate()
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	fakeClient := newFakeClient(kcp.DeepCopy(), cluster.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
-		Client:   fakeClient,
-		recorder: record.NewFakeRecorder(32),
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		recorder:            record.NewFakeRecorder(32),
 		managementCluster: &fakeManagementCluster{
 			Management: &internal.Management{Client: fakeClient},
 			Workload:   fakeWorkloadCluster{},
@@ -441,14 +451,14 @@ func TestReconcileClusterNoEndpoints(t *testing.T) {
 	}
 
 	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	// this first requeue is to add finalizer
 	g.Expect(result).To(Equal(ctrl.Result{}))
 	g.Expect(r.Client.Get(ctx, util.ObjectKey(kcp), kcp)).To(Succeed())
 	g.Expect(kcp.Finalizers).To(ContainElement(controlplanev1.KubeadmControlPlaneFinalizer))
 
 	result, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	// TODO: this should stop to re-queue as soon as we have a proper remote cluster cache in place.
 	g.Expect(result).To(Equal(ctrl.Result{Requeue: false, RequeueAfter: 20 * time.Second}))
 	g.Expect(r.Client.Get(ctx, util.ObjectKey(kcp), kcp)).To(Succeed())
@@ -459,7 +469,7 @@ func TestReconcileClusterNoEndpoints(t *testing.T) {
 	g.Expect(kcp.Status.Selector).NotTo(BeEmpty())
 
 	_, err = secret.GetFromNamespacedName(ctx, fakeClient, client.ObjectKey{Namespace: metav1.NamespaceDefault, Name: "foo"}, secret.ClusterCA)
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	machineList := &clusterv1.MachineList{}
 	g.Expect(fakeClient.List(ctx, machineList, client.InNamespace(metav1.NamespaceDefault))).To(Succeed())
@@ -515,12 +525,14 @@ func TestKubeadmControlPlaneReconciler_adoption(t *testing.T) {
 		fmc.Reader = fakeClient
 		r := &KubeadmControlPlaneReconciler{
 			Client:                    fakeClient,
-			APIReader:                 fakeClient,
+			SecretCachingClient:       fakeClient,
 			managementCluster:         fmc,
 			managementClusterUncached: fmc,
 		}
 
-		g.Expect(r.reconcile(ctx, cluster, kcp)).To(Equal(ctrl.Result{}))
+		_, adoptableMachineFound, err := r.initControlPlaneScope(ctx, cluster, kcp)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(adoptableMachineFound).To(BeTrue())
 
 		machineList := &clusterv1.MachineList{}
 		g.Expect(fakeClient.List(ctx, machineList, client.InNamespace(cluster.Namespace))).To(Succeed())
@@ -609,12 +621,14 @@ func TestKubeadmControlPlaneReconciler_adoption(t *testing.T) {
 		fmc.Reader = fakeClient
 		r := &KubeadmControlPlaneReconciler{
 			Client:                    fakeClient,
-			APIReader:                 fakeClient,
+			SecretCachingClient:       fakeClient,
 			managementCluster:         fmc,
 			managementClusterUncached: fmc,
 		}
 
-		g.Expect(r.reconcile(ctx, cluster, kcp)).To(Equal(ctrl.Result{}))
+		_, adoptableMachineFound, err := r.initControlPlaneScope(ctx, cluster, kcp)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(adoptableMachineFound).To(BeTrue())
 
 		machineList := &clusterv1.MachineList{}
 		g.Expect(fakeClient.List(ctx, machineList, client.InNamespace(cluster.Namespace))).To(Succeed())
@@ -693,15 +707,14 @@ func TestKubeadmControlPlaneReconciler_adoption(t *testing.T) {
 		fmc.Reader = fakeClient
 		r := &KubeadmControlPlaneReconciler{
 			Client:                    fakeClient,
-			APIReader:                 fakeClient,
+			SecretCachingClient:       fakeClient,
 			managementCluster:         fmc,
 			managementClusterUncached: fmc,
 		}
 
-		result, err := r.reconcile(ctx, cluster, kcp)
-		g.Expect(result).To(Equal(ctrl.Result{}))
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("has just been deleted"))
+		_, adoptableMachineFound, err := r.initControlPlaneScope(ctx, cluster, kcp)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(adoptableMachineFound).To(BeFalse())
 
 		machineList := &clusterv1.MachineList{}
 		g.Expect(fakeClient.List(ctx, machineList, client.InNamespace(cluster.Namespace))).To(Succeed())
@@ -711,7 +724,7 @@ func TestKubeadmControlPlaneReconciler_adoption(t *testing.T) {
 		}
 	})
 
-	t.Run("refuses to adopt Machines that are more than one version old", func(t *testing.T) {
+	t.Run("Do not adopt Machines that are more than one version old", func(t *testing.T) {
 		g := NewWithT(t)
 
 		cluster, kcp, tmpl := createClusterWithControlPlane(metav1.NamespaceDefault)
@@ -747,13 +760,16 @@ func TestKubeadmControlPlaneReconciler_adoption(t *testing.T) {
 		recorder := record.NewFakeRecorder(32)
 		r := &KubeadmControlPlaneReconciler{
 			Client:                    fakeClient,
-			APIReader:                 fakeClient,
+			SecretCachingClient:       fakeClient,
 			recorder:                  recorder,
 			managementCluster:         fmc,
 			managementClusterUncached: fmc,
 		}
 
-		g.Expect(r.reconcile(ctx, cluster, kcp)).To(Equal(ctrl.Result{}))
+		_, adoptableMachineFound, err := r.initControlPlaneScope(ctx, cluster, kcp)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(adoptableMachineFound).To(BeTrue())
+
 		// Message: Warning AdoptionFailed Could not adopt Machine test/test0: its version ("v1.15.0") is outside supported +/- one minor version skew from KCP's ("v1.17.0")
 		g.Expect(recorder.Events).To(Receive(ContainSubstring("minor version")))
 
@@ -775,9 +791,9 @@ func TestKubeadmControlPlaneReconciler_ensureOwnerReferences(t *testing.T) {
 	cluster.Status.InfrastructureReady = true
 	kcp.Spec.Version = "v1.21.0"
 	key, err := certs.NewPrivateKey()
-	g.Expect(err).To(BeNil())
+	g.Expect(err).ToNot(HaveOccurred())
 	crt, err := getTestCACert(key)
-	g.Expect(err).To(BeNil())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	clusterSecret := &corev1.Secret{
 		// The Secret's Type is used by KCP to determine whether it is user-provided.
@@ -813,13 +829,20 @@ func TestKubeadmControlPlaneReconciler_ensureOwnerReferences(t *testing.T) {
 			// Set the Secret Type to clusterv1.ClusterSecretType which signals this Secret was generated by CAPI.
 			s.Type = clusterv1.ClusterSecretType
 
+			// Store the secret in the certificate.
+			c.Secret = s
+
 			objs = append(objs, s)
 		}
 
 		fakeClient := newFakeClient(objs...)
 
-		err = ensureCertificatesOwnerRef(ctx, fakeClient, client.ObjectKeyFromObject(cluster), certificates, kcpOwner)
-		g.Expect(err).To(BeNil())
+		r := KubeadmControlPlaneReconciler{
+			Client:              fakeClient,
+			SecretCachingClient: fakeClient,
+		}
+		err = r.ensureCertificatesOwnerRef(ctx, certificates, kcpOwner)
+		g.Expect(err).ToNot(HaveOccurred())
 
 		secrets := &corev1.SecretList{}
 		g.Expect(fakeClient.List(ctx, secrets, client.InNamespace(cluster.Namespace), client.MatchingLabels{"testing": "yes"})).To(Succeed())
@@ -854,12 +877,21 @@ func TestKubeadmControlPlaneReconciler_ensureOwnerReferences(t *testing.T) {
 					Controller: pointer.Bool(true),
 				},
 			})
+
+			// Store the secret in the certificate.
+			c.Secret = s
+
 			objs = append(objs, s)
 		}
 
 		fakeClient := newFakeClient(objs...)
-		err := ensureCertificatesOwnerRef(ctx, fakeClient, client.ObjectKeyFromObject(cluster), certificates, kcpOwner)
-		g.Expect(err).To(BeNil())
+
+		r := KubeadmControlPlaneReconciler{
+			Client:              fakeClient,
+			SecretCachingClient: fakeClient,
+		}
+		err := r.ensureCertificatesOwnerRef(ctx, certificates, kcpOwner)
+		g.Expect(err).ToNot(HaveOccurred())
 
 		secrets := &corev1.SecretList{}
 		g.Expect(fakeClient.List(ctx, secrets, client.InNamespace(cluster.Namespace), client.MatchingLabels{"testing": "yes"})).To(Succeed())
@@ -897,12 +929,20 @@ func TestKubeadmControlPlaneReconciler_ensureOwnerReferences(t *testing.T) {
 				},
 			))
 
+			// Store the secret in the certificate.
+			c.Secret = s
+
 			objs = append(objs, s)
 		}
 
 		fakeClient := newFakeClient(objs...)
-		err := ensureCertificatesOwnerRef(ctx, fakeClient, client.ObjectKeyFromObject(cluster), certificates, kcpOwner)
-		g.Expect(err).To(BeNil())
+
+		r := KubeadmControlPlaneReconciler{
+			Client:              fakeClient,
+			SecretCachingClient: fakeClient,
+		}
+		err := r.ensureCertificatesOwnerRef(ctx, certificates, kcpOwner)
+		g.Expect(err).ToNot(HaveOccurred())
 
 		secrets := &corev1.SecretList{}
 		g.Expect(fakeClient.List(ctx, secrets, client.InNamespace(cluster.Namespace), client.MatchingLabels{"testing": "yes"})).To(Succeed())
@@ -1088,42 +1128,45 @@ func TestReconcileCertificateExpiries(t *testing.T) {
 		machineWithoutNodeRefKubeadmConfig,
 	)
 
-	controlPlane, err := internal.NewControlPlane(ctx, fakeClient, cluster, kcp, ownedMachines)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	r := &KubeadmControlPlaneReconciler{
-		Client: fakeClient,
-		managementCluster: &fakeManagementCluster{
-			Workload: fakeWorkloadCluster{
-				APIServerCertificateExpiry: &detectedExpiry,
-			},
+	managementCluster := &fakeManagementCluster{
+		Workload: fakeWorkloadCluster{
+			APIServerCertificateExpiry: &detectedExpiry,
 		},
 	}
 
-	_, err = r.reconcileCertificateExpiries(ctx, controlPlane)
-	g.Expect(err).NotTo(HaveOccurred())
+	r := &KubeadmControlPlaneReconciler{
+		Client:              fakeClient,
+		SecretCachingClient: fakeClient,
+		managementCluster:   managementCluster,
+	}
+
+	controlPlane, err := internal.NewControlPlane(ctx, managementCluster, fakeClient, cluster, kcp, ownedMachines)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = r.reconcileCertificateExpiries(ctx, controlPlane)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	// Verify machineWithoutExpiryAnnotation has detectedExpiry.
 	actualKubeadmConfig := bootstrapv1.KubeadmConfig{}
 	err = fakeClient.Get(ctx, client.ObjectKeyFromObject(machineWithoutExpiryAnnotationKubeadmConfig), &actualKubeadmConfig)
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	actualExpiry := actualKubeadmConfig.Annotations[clusterv1.MachineCertificatesExpiryDateAnnotation]
 	g.Expect(actualExpiry).To(Equal(detectedExpiry.Format(time.RFC3339)))
 
 	// Verify machineWithExpiryAnnotation has still preExistingExpiry.
 	err = fakeClient.Get(ctx, client.ObjectKeyFromObject(machineWithExpiryAnnotationKubeadmConfig), &actualKubeadmConfig)
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	actualExpiry = actualKubeadmConfig.Annotations[clusterv1.MachineCertificatesExpiryDateAnnotation]
 	g.Expect(actualExpiry).To(Equal(preExistingExpiry.Format(time.RFC3339)))
 
 	// Verify machineWithDeletionTimestamp has still no expiry annotation.
 	err = fakeClient.Get(ctx, client.ObjectKeyFromObject(machineWithDeletionTimestampKubeadmConfig), &actualKubeadmConfig)
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(actualKubeadmConfig.Annotations).ToNot(ContainElement(clusterv1.MachineCertificatesExpiryDateAnnotation))
 
 	// Verify machineWithoutNodeRef has still no expiry annotation.
 	err = fakeClient.Get(ctx, client.ObjectKeyFromObject(machineWithoutNodeRefKubeadmConfig), &actualKubeadmConfig)
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(actualKubeadmConfig.Annotations).ToNot(ContainElement(clusterv1.MachineCertificatesExpiryDateAnnotation))
 }
 
@@ -1133,7 +1176,7 @@ func TestReconcileInitializeControlPlane(t *testing.T) {
 
 		t.Log("Creating the namespace")
 		ns, err := env.CreateNamespace(ctx, "test-kcp-reconcile-initializecontrolplane")
-		g.Expect(err).To(BeNil())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		return ns
 	}
@@ -1158,7 +1201,7 @@ func TestReconcileInitializeControlPlane(t *testing.T) {
 	}
 	g.Expect(env.Create(ctx, cluster)).To(Succeed())
 	patchHelper, err := patch.NewHelper(cluster, env)
-	g.Expect(err).To(BeNil())
+	g.Expect(err).ToNot(HaveOccurred())
 	cluster.Status = clusterv1.ClusterStatus{InfrastructureReady: true}
 	g.Expect(patchHelper.Patch(ctx, cluster)).To(Succeed())
 
@@ -1268,9 +1311,9 @@ kubernetesVersion: metav1.16.1`,
 
 	expectedLabels := map[string]string{clusterv1.ClusterNameLabel: "foo"}
 	r := &KubeadmControlPlaneReconciler{
-		Client:    env,
-		APIReader: env.GetAPIReader(),
-		recorder:  record.NewFakeRecorder(32),
+		Client:              env,
+		SecretCachingClient: secretCachingClient,
+		recorder:            record.NewFakeRecorder(32),
 		managementCluster: &fakeManagementCluster{
 			Management: &internal.Management{Client: env},
 			Workload: fakeWorkloadCluster{
@@ -1293,16 +1336,16 @@ kubernetesVersion: metav1.16.1`,
 	}
 
 	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 	// this first requeue is to add finalizer
 	g.Expect(result).To(Equal(ctrl.Result{}))
-	g.Expect(r.APIReader.Get(ctx, util.ObjectKey(kcp), kcp)).To(Succeed())
+	g.Expect(env.GetAPIReader().Get(ctx, util.ObjectKey(kcp), kcp)).To(Succeed())
 	g.Expect(kcp.Finalizers).To(ContainElement(controlplanev1.KubeadmControlPlaneFinalizer))
 
 	g.Eventually(func(g Gomega) {
 		_, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(kcp)})
-		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(r.APIReader.Get(ctx, client.ObjectKey{Name: kcp.Name, Namespace: kcp.Namespace}, kcp)).To(Succeed())
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKey{Name: kcp.Name, Namespace: kcp.Namespace}, kcp)).To(Succeed())
 		// Expect the referenced infrastructure template to have a Cluster Owner Reference.
 		g.Expect(env.GetAPIReader().Get(ctx, util.ObjectKey(genericInfrastructureMachineTemplate), genericInfrastructureMachineTemplate)).To(Succeed())
 		g.Expect(genericInfrastructureMachineTemplate.GetOwnerReferences()).To(ContainElement(metav1.OwnerReference{
@@ -1320,13 +1363,13 @@ kubernetesVersion: metav1.16.1`,
 		g.Expect(conditions.IsFalse(kcp, controlplanev1.AvailableCondition)).To(BeTrue())
 
 		s, err := secret.GetFromNamespacedName(ctx, env, client.ObjectKey{Namespace: cluster.Namespace, Name: "foo"}, secret.ClusterCA)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(s).NotTo(BeNil())
 		g.Expect(s.Data).NotTo(BeEmpty())
 		g.Expect(s.Labels).To(Equal(expectedLabels))
 
 		k, err := kubeconfig.FromSecret(ctx, env, util.ObjectKey(cluster))
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(k).NotTo(BeEmpty())
 
 		machineList := &clusterv1.MachineList{}
@@ -1337,7 +1380,7 @@ kubernetesVersion: metav1.16.1`,
 		g.Expect(machine.Name).To(HavePrefix(kcp.Name))
 		// Newly cloned infra objects should have the infraref annotation.
 		infraObj, err := external.Get(ctx, r.Client, &machine.Spec.InfrastructureRef, machine.Spec.InfrastructureRef.Namespace)
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(infraObj.GetAnnotations()).To(HaveKeyWithValue(clusterv1.TemplateClonedFromNameAnnotation, genericInfrastructureMachineTemplate.GetName()))
 		g.Expect(infraObj.GetAnnotations()).To(HaveKeyWithValue(clusterv1.TemplateClonedFromGroupKindAnnotation, genericInfrastructureMachineTemplate.GroupVersionKind().GroupKind().String()))
 	}, 30*time.Second).Should(Succeed())
@@ -1349,7 +1392,7 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 
 		t.Log("Creating the namespace")
 		ns, err := env.CreateNamespace(ctx, "test-kcp-reconciler-sync-machines")
-		g.Expect(err).To(BeNil())
+		g.Expect(err).ToNot(HaveOccurred())
 
 		t.Log("Creating the Cluster")
 		cluster := &clusterv1.Cluster{ObjectMeta: metav1.ObjectMeta{Namespace: ns.Name, Name: "test-cluster"}}
@@ -1519,6 +1562,32 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 		return !deletingMachine.DeletionTimestamp.IsZero()
 	}, 30*time.Second).Should(BeTrue())
 
+	// Existing machine that has a InfrastructureRef which does not exist.
+	nilInfraMachineMachine := &clusterv1.Machine{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clusterv1.GroupVersion.String(),
+			Kind:       "Machine",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "nil-infra-machine-machine",
+			Namespace:   namespace.Name,
+			Labels:      map[string]string{},
+			Annotations: map[string]string{},
+			Finalizers:  []string{"testing-finalizer"},
+		},
+		Spec: clusterv1.MachineSpec{
+			ClusterName: testCluster.Name,
+			InfrastructureRef: corev1.ObjectReference{
+				Namespace: namespace.Name,
+			},
+			Bootstrap: clusterv1.Bootstrap{
+				DataSecretName: pointer.String("machine-bootstrap-secret"),
+			},
+		},
+	}
+	g.Expect(env.Create(ctx, nilInfraMachineMachine, client.FieldOwner(classicManager))).To(Succeed())
+	// Delete the machine to put it in the deleting state
+
 	kcp := &controlplanev1.KubeadmControlPlane{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "KubeadmControlPlane",
@@ -1564,6 +1633,7 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 		Machines: collections.Machines{
 			inPlaceMutatingMachine.Name: inPlaceMutatingMachine,
 			deletingMachine.Name:        deletingMachine,
+			nilInfraMachineMachine.Name: nilInfraMachineMachine,
 		},
 		KubeadmConfigs: map[string]*bootstrapv1.KubeadmConfig{
 			inPlaceMutatingMachine.Name: existingKubeadmConfig,
@@ -1581,12 +1651,16 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 
 	// Run syncMachines to clean up managed fields and have proper field ownership
 	// for Machines, InfrastructureMachines and KubeadmConfigs.
-	reconciler := &KubeadmControlPlaneReconciler{Client: env, ssaCache: ssa.NewCache()}
+	reconciler := &KubeadmControlPlaneReconciler{
+		Client:              env,
+		SecretCachingClient: secretCachingClient,
+		ssaCache:            ssa.NewCache(),
+	}
 	g.Expect(reconciler.syncMachines(ctx, controlPlane)).To(Succeed())
 
 	// The inPlaceMutatingMachine should have cleaned up managed fields.
 	updatedInplaceMutatingMachine := inPlaceMutatingMachine.DeepCopy()
-	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedInplaceMutatingMachine), updatedInplaceMutatingMachine))
+	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedInplaceMutatingMachine), updatedInplaceMutatingMachine)).To(Succeed())
 	// Verify ManagedFields
 	g.Expect(updatedInplaceMutatingMachine.ManagedFields).Should(
 		ContainElement(ssa.MatchManagedFieldsEntry(kcpManagerName, metav1.ManagedFieldsOperationApply)),
@@ -1600,7 +1674,7 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 	// The InfrastructureMachine should have ownership of "labels" and "annotations" transferred to
 	// "capi-kubeadmcontrolplane" manager.
 	updatedInfraMachine := existingInfraMachine.DeepCopy()
-	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedInfraMachine), updatedInfraMachine))
+	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedInfraMachine), updatedInfraMachine)).To(Succeed())
 
 	// Verify ManagedFields
 	g.Expect(updatedInfraMachine.GetManagedFields()).Should(
@@ -1618,7 +1692,7 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 	// The KubeadmConfig should have ownership of "labels" and "annotations" transferred to
 	// "capi-kubeadmcontrolplane" manager.
 	updatedKubeadmConfig := existingKubeadmConfig.DeepCopy()
-	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedKubeadmConfig), updatedKubeadmConfig))
+	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedKubeadmConfig), updatedKubeadmConfig)).To(Succeed())
 
 	// Verify ManagedFields
 	g.Expect(updatedKubeadmConfig.GetManagedFields()).Should(
@@ -1665,7 +1739,7 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 
 	// Verify in-place mutable fields are updated on the Machine.
 	updatedInplaceMutatingMachine = inPlaceMutatingMachine.DeepCopy()
-	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedInplaceMutatingMachine), updatedInplaceMutatingMachine))
+	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedInplaceMutatingMachine), updatedInplaceMutatingMachine)).To(Succeed())
 	// Verify Labels
 	g.Expect(updatedInplaceMutatingMachine.Labels).Should(Equal(expectedLabels))
 	// Verify Annotations
@@ -1692,7 +1766,7 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 
 	// Verify in-place mutable fields are updated on InfrastructureMachine
 	updatedInfraMachine = existingInfraMachine.DeepCopy()
-	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedInfraMachine), updatedInfraMachine))
+	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedInfraMachine), updatedInfraMachine)).To(Succeed())
 	// Verify Labels
 	g.Expect(updatedInfraMachine.GetLabels()).Should(Equal(expectedLabels))
 	// Verify Annotations
@@ -1702,7 +1776,7 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 
 	// Verify in-place mutable fields are updated on the KubeadmConfig.
 	updatedKubeadmConfig = existingKubeadmConfig.DeepCopy()
-	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedKubeadmConfig), updatedKubeadmConfig))
+	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedKubeadmConfig), updatedKubeadmConfig)).To(Succeed())
 	// Verify Labels
 	g.Expect(updatedKubeadmConfig.GetLabels()).Should(Equal(expectedLabels))
 	// Verify Annotations
@@ -1712,7 +1786,7 @@ func TestKubeadmControlPlaneReconciler_syncMachines(t *testing.T) {
 
 	// The deleting machine should not change.
 	updatedDeletingMachine := deletingMachine.DeepCopy()
-	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedDeletingMachine), updatedDeletingMachine))
+	g.Expect(env.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(updatedDeletingMachine), updatedDeletingMachine)).To(Succeed())
 
 	// Verify ManagedFields
 	g.Expect(updatedDeletingMachine.ManagedFields).ShouldNot(
@@ -2014,15 +2088,18 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 		controllerutil.AddFinalizer(kcp, controlplanev1.KubeadmControlPlaneFinalizer)
 		initObjs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy()}
 
+		machines := collections.New()
 		for i := 0; i < 3; i++ {
 			m, _ := createMachineNodePair(fmt.Sprintf("test-%d", i), cluster, kcp, true)
 			initObjs = append(initObjs, m)
+			machines.Insert(m)
 		}
 
 		fakeClient := newFakeClient(initObjs...)
 
 		r := &KubeadmControlPlaneReconciler{
-			Client: fakeClient,
+			Client:              fakeClient,
+			SecretCachingClient: fakeClient,
 			managementCluster: &fakeManagementCluster{
 				Management: &internal.Management{Client: fakeClient},
 				Workload:   fakeWorkloadCluster{},
@@ -2031,7 +2108,13 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 			recorder: record.NewFakeRecorder(32),
 		}
 
-		result, err := r.reconcileDelete(ctx, cluster, kcp)
+		controlPlane := &internal.ControlPlane{
+			KCP:      kcp,
+			Cluster:  cluster,
+			Machines: machines,
+		}
+
+		result, err := r.reconcileDelete(ctx, controlPlane)
 		g.Expect(result).To(Equal(ctrl.Result{RequeueAfter: deleteRequeueAfter}))
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(kcp.Finalizers).To(ContainElement(controlplanev1.KubeadmControlPlaneFinalizer))
@@ -2040,9 +2123,14 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 		g.Expect(fakeClient.List(ctx, &controlPlaneMachines)).To(Succeed())
 		g.Expect(controlPlaneMachines.Items).To(BeEmpty())
 
-		result, err = r.reconcileDelete(ctx, cluster, kcp)
+		controlPlane = &internal.ControlPlane{
+			KCP:     kcp,
+			Cluster: cluster,
+		}
+
+		result, err = r.reconcileDelete(ctx, controlPlane)
 		g.Expect(result).To(Equal(ctrl.Result{}))
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(kcp.Finalizers).To(BeEmpty())
 	})
 
@@ -2064,15 +2152,18 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 
 		initObjs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy(), workerMachine.DeepCopy()}
 
+		machines := collections.New()
 		for i := 0; i < 3; i++ {
 			m, _ := createMachineNodePair(fmt.Sprintf("test-%d", i), cluster, kcp, true)
 			initObjs = append(initObjs, m)
+			machines.Insert(m)
 		}
 
 		fakeClient := newFakeClient(initObjs...)
 
 		r := &KubeadmControlPlaneReconciler{
-			Client: fakeClient,
+			Client:              fakeClient,
+			SecretCachingClient: fakeClient,
 			managementCluster: &fakeManagementCluster{
 				Management: &internal.Management{Client: fakeClient},
 				Workload:   fakeWorkloadCluster{},
@@ -2080,7 +2171,13 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 			recorder: record.NewFakeRecorder(32),
 		}
 
-		result, err := r.reconcileDelete(ctx, cluster, kcp)
+		controlPlane := &internal.ControlPlane{
+			KCP:      kcp,
+			Cluster:  cluster,
+			Machines: machines,
+		}
+
+		result, err := r.reconcileDelete(ctx, controlPlane)
 		g.Expect(result).To(Equal(ctrl.Result{RequeueAfter: deleteRequeueAfter}))
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -2113,15 +2210,18 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 
 		initObjs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy(), workerMachinePool.DeepCopy()}
 
+		machines := collections.New()
 		for i := 0; i < 3; i++ {
 			m, _ := createMachineNodePair(fmt.Sprintf("test-%d", i), cluster, kcp, true)
 			initObjs = append(initObjs, m)
+			machines.Insert(m)
 		}
 
 		fakeClient := newFakeClient(initObjs...)
 
 		r := &KubeadmControlPlaneReconciler{
-			Client: fakeClient,
+			Client:              fakeClient,
+			SecretCachingClient: fakeClient,
 			managementCluster: &fakeManagementCluster{
 				Management: &internal.Management{Client: fakeClient},
 				Workload:   fakeWorkloadCluster{},
@@ -2129,7 +2229,13 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 			recorder: record.NewFakeRecorder(32),
 		}
 
-		result, err := r.reconcileDelete(ctx, cluster, kcp)
+		controlPlane := &internal.ControlPlane{
+			KCP:      kcp,
+			Cluster:  cluster,
+			Machines: machines,
+		}
+
+		result, err := r.reconcileDelete(ctx, controlPlane)
 		g.Expect(result).To(Equal(ctrl.Result{RequeueAfter: deleteRequeueAfter}))
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -2152,7 +2258,8 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 		fakeClient := newFakeClient(cluster.DeepCopy(), kcp.DeepCopy())
 
 		r := &KubeadmControlPlaneReconciler{
-			Client: fakeClient,
+			Client:              fakeClient,
+			SecretCachingClient: fakeClient,
 			managementCluster: &fakeManagementCluster{
 				Management: &internal.Management{Client: fakeClient},
 				Workload:   fakeWorkloadCluster{},
@@ -2160,9 +2267,14 @@ func TestKubeadmControlPlaneReconciler_reconcileDelete(t *testing.T) {
 			recorder: record.NewFakeRecorder(32),
 		}
 
-		result, err := r.reconcileDelete(ctx, cluster, kcp)
+		controlPlane := &internal.ControlPlane{
+			KCP:     kcp,
+			Cluster: cluster,
+		}
+
+		result, err := r.reconcileDelete(ctx, controlPlane)
 		g.Expect(result).To(Equal(ctrl.Result{}))
-		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(kcp.Finalizers).To(BeEmpty())
 	})
 }
